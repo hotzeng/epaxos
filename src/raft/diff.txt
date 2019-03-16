@@ -1,0 +1,302 @@
+21,24d20
+<     "fmt"
+< 	"math/rand"
+< 	"bytes"
+< 	"encoding/gob"
+27a24,26
+> 	"math/rand"
+> 	"bytes"
+> 	"encoding/gob"
+30,32d28
+< const (
+<     debug = true
+< )
+54a51
+> 	// Your data here (2A, 2B, 2C).
+59,61c56,58
+< 	currentTerm     int
+< 	votedFor        int
+< 	logs            []LogItem
+---
+> 	currentTerm int
+> 	votedFor int
+> 	logs []LogEntry
+64,65c61,62
+< 	commitIndex     int
+< 	lastApplied     int
+---
+> 	commitIndex int
+> 	lastApplied int
+68,69c65,66
+< 	nextIndex       []int
+< 	matchIndex      []int
+---
+> 	nextIndex []int
+> 	matchIndex []int
+72,77c69,74
+< 	status          int
+< 	voteCount       int
+< 	applyCh         chan ApplyMsg
+< 	electWin        chan bool
+< 	granted         chan bool
+< 	heartbeat       chan bool
+---
+> 	status int
+> 	voteCount int
+> 	applyCh chan ApplyMsg
+> 	electWin chan bool
+> 	granted chan bool
+> 	heartbeat chan bool
+80c77
+< type LogItem struct {
+---
+> type LogEntry struct {
+93a91
+> 	// Your code here (2A).
+100c98
+< func (rf *Raft) lastIndex() int {
+---
+> func (rf *Raft) getLastIndex() int {
+113a112
+> 	// Your code here (2C).
+127c126,128
+< 	if  len(data) < 1 || data == nil {
+---
+> 	// Your code here (2C).
+> 	// bootstrap without any state
+> 	if data == nil || len(data) < 1 {
+143a145
+> 	// Your data here (2A, 2B).
+154a157
+> 	// Your data here (2A).
+165c168
+< 	Entries []LogItem
+---
+> 	Entries []LogEntry
+177a181
+> 	// Your code here (2A, 2B).
+181a186
+> 	// Do not grant vote if term < currentTerm
+187c192
+< 
+---
+> 	// Convert to follower state if term > currentTerm
+193a199,201
+> 	reply.VoteGranted = false
+> 	reply.Term = rf.currentTerm
+> 
+198,200d205
+<         if debug {
+<             fmt.Printf("%d get vote from %d\n", args.CandidateId, rf.me)
+<         }
+203,206d207
+< 
+<     reply.VoteGranted = false
+< 	reply.Term = rf.currentTerm
+< 
+210c211
+< 	term, index := rf.getLastTerm(), rf.lastIndex()
+---
+> 	term, index := rf.getLastTerm(), rf.getLastIndex()
+214a216
+> 
+217a220,248
+> //
+> // example code to send a RequestVote RPC to a server.
+> // server is the index of the target server in rf.peers[].
+> // expects RPC arguments in args.
+> // fills in *reply with RPC reply, so caller should
+> // pass &reply.
+> // the types of the args and reply passed to Call() must be
+> // the same as the types of the arguments declared in the
+> // handler function (including whether they are pointers).
+> //
+> // The labrpc package simulates a lossy network, in which servers
+> // may be unreachable, and in which requests and replies may be lost.
+> // Call() sends a request and waits for a reply. If a reply arrives
+> // within a timeout interval, Call() returns true; otherwise
+> // Call() returns false. Thus Call() may not return for a while.
+> // A false return can be caused by a dead server, a live server that
+> // can't be reached, a lost request, or a lost reply.
+> //
+> // Call() is guaranteed to return (perhaps after a delay) *except* if the
+> // handler function on the server side does not return.  Thus there
+> // is no need to implement your own timeouts around Call().
+> //
+> // look at the comments in ../labrpc/labrpc.go for more details.
+> //
+> // if you're having trouble getting RPC to work, check that you've
+> // capitalized all field names in structs passed over RPC, and
+> // that the caller passes the address of the reply struct with &, not
+> // the struct itself.
+> //
+219d249
+< 
+249c279
+< func (rf *Raft) startElection() {
+---
+> func (rf *Raft) sendAllRequestVotes() {
+254c284
+< 	args.LastLogIndex = rf.lastIndex()
+---
+> 	args.LastLogIndex = rf.getLastIndex()
+260,262d289
+<             if debug {
+<                 fmt.Printf("%d send request to %d\n", rf.me, i)
+<             }
+277c304
+< 		reply.nextTryIndex = rf.lastIndex() + 1
+---
+> 		reply.nextTryIndex = rf.getLastIndex() + 1
+289,290c316,317
+< 	if args.PrevLogIndex > rf.lastIndex() {
+< 		reply.nextTryIndex = rf.lastIndex() + 1
+---
+> 	if args.PrevLogIndex > rf.getLastIndex() {
+> 		reply.nextTryIndex = rf.getLastIndex() + 1
+304c331
+< 		var restLogs []LogItem
+---
+> 		var restLogs []LogEntry
+309c336
+< 		if rf.logsDifferent(restLogs, args.Entries) || len(restLogs) < len(args.Entries) {
+---
+> 		if rf.hasConflictLogs(restLogs, args.Entries) || len(restLogs) < len(args.Entries) {
+320c347
+< 			if args.LeaderCommit <= rf.lastIndex() {
+---
+> 			if args.LeaderCommit <= rf.getLastIndex() {
+323c350
+< 				rf.commitIndex = rf.lastIndex()
+---
+> 				rf.commitIndex = rf.getLastIndex()
+326c353
+< 			go rf.appendLogs()
+---
+> 			go rf.commitLogs()
+333c360
+< func (rf *Raft) logsDifferent(serverLogs []LogItem, leaderLogs []LogItem) bool {
+---
+> func (rf *Raft) hasConflictLogs(serverLogs []LogEntry, leaderLogs []LogEntry) bool {
+352c379
+< 	if (!ok || args.Term != rf.currentTerm || rf.status != Leader) {
+---
+> 	if !ok || rf.status != Leader || args.Term != rf.currentTerm {
+371c398
+< 	for N := rf.lastIndex(); N > rf.commitIndex; N-- {
+---
+> 	for N := rf.getLastIndex(); N > rf.commitIndex; N-- {
+384c411
+< 			go rf.appendLogs()
+---
+> 			go rf.commitLogs()
+407c434
+< 			if rf.nextIndex[i] <= rf.lastIndex() {
+---
+> 			if rf.nextIndex[i] <= rf.getLastIndex() {
+416c443
+< func (rf *Raft) appendLogs() {
+---
+> func (rf *Raft) commitLogs() {
+426a454,466
+> //
+> // the service using Raft (e.g. a k/v server) wants to start
+> // agreement on the next command to be appended to Raft's log. if this
+> // server isn't the leader, returns false. otherwise start the
+> // agreement and return immediately. there is no guarantee that this
+> // command will ever be committed to the Raft log, since the leader
+> // may fail or lose an election.
+> //
+> // the first return value is the index that the command will appear at
+> // if it's ever committed. the second return value is the current
+> // term. the third return value is true if this server believes it is
+> // the leader.
+> //
+427a468
+> 	// Your code here (2B).
+436c477
+< 		index = rf.lastIndex() + 1
+---
+> 		index = rf.getLastIndex() + 1
+438c479
+< 		rf.logs = append(rf.logs, LogItem{term, command})
+---
+> 		rf.logs = append(rf.logs, LogEntry{term, command})
+453,461d493
+<     //rf.mu.Lock()
+<     //rf.currentTerm  = 0
+<     //rf.votedFor     = -1
+< 
+<     //rf.commitIndex  = 0
+<     //rf.lastApplied  = 0
+< 
+<     //rf.status       = Follower
+<     //rf.mu.Unlock()
+464c496
+< func (rf *Raft) startServer() {
+---
+> func (rf *Raft) runServer() {
+470,472c502
+<             if debug {
+<                 fmt.Printf("%d becomes Leader\n", rf.me)
+<             }
+---
+> 			//DPrintf("Server %d, Leader, term %d", rf.me, rf.currentTerm)
+474c504
+< 			time.Sleep(time.Millisecond * 100)
+---
+> 			time.Sleep(time.Millisecond * 120)
+477,479d506
+<             if debug {
+<                 fmt.Printf("%d becomes Follower\n", rf.me)
+<             }
+488,490d514
+<             if debug {
+<                 fmt.Printf("%d becomes Candidate\n", rf.me)
+<             }
+497c521
+< 			rf.startElection()
+---
+> 			rf.sendAllRequestVotes()
+503,505d526
+<                 //if debug {
+<                 //    fmt.Printf("----------------------------------- %d becomes Follower from Candidate\n", rf.me)
+<                 //}
+511c532
+< 				nextIdx := rf.lastIndex() + 1
+---
+> 				nextIdx := rf.getLastIndex() + 1
+518,520d538
+<                 //if debug {
+<                 //    fmt.Printf("----------------------------------- %d becomes Leader from Candidate\n", rf.me)
+<                 //}
+526c544,554
+< 
+---
+> //
+> // the service or tester wants to create a Raft server. the ports
+> // of all the Raft servers (including this one) are in peers[]. this
+> // server's port is peers[me]. all the servers' peers[] arrays
+> // have the same order. persister is a place for this server to
+> // save its persistent state, and also initially holds the most
+> // recent saved state, if any. applyCh is a channel on which the
+> // tester or service expects Raft to send ApplyMsg messages.
+> // Make() must return quickly, so it should start goroutines
+> // for any long-running work.
+> //
+533a562
+> 	// Your initialization code here (2A, 2B, 2C).
+544c573
+< 	rf.logs = append(rf.logs, LogItem{Term: 0})
+---
+> 	rf.logs = append(rf.logs, LogEntry{Term: 0})
+545a575
+> 	// initialize from state persisted before a crash
+548,551c578,579
+<     if debug {
+<         fmt.Printf("Make server %d\n", me)
+<     }
+< 	go rf.startServer()
+---
+> 
+> 	go rf.runServer()
