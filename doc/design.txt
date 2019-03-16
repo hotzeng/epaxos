@@ -10,14 +10,38 @@ src/
 			leader.go
 			auditor.go
 			main.go
+			persister.go
 		client/
 			main.go
+
+# Client API
+
+PUT(K,V) -> OK
+GET(K)   -> V, bool
+
+where K: int32, V: int64
 
 # Protocol
 
 Golang RPC call: https://golang.org/pkg/net/rpc/
 
-# Files
+# Data File
+
+Each server maintains a number of files:
+- 1.dat
+- 2.dat
+- ...
+
+Each file is a append-only stream of 16-byte struct:
+- 4-byte: command
+	- 0x00000000: no-op
+	- 0x00000001: PUT
+- 4-byte: key (valid only if command=1)
+- 8-byte: value (valid only if command=1)
+
+Remark: use big endian all the time
+
+# Source Files
 
 epaxos/common/types.go:
 
@@ -53,3 +77,8 @@ epaxos/server/auditor.go:
 
 - func (ep *EPaxos) ProcessPreAccept(msg *PreAcceptMsg) PreAcceptOKMsg, error
 - ...
+
+epaxos/server/persister.go:
+
+- func (ep *EPaxos) AppendLog(key string, value string) error
+- func (ep *EPaxos) RecoverFromLog() error
