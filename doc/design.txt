@@ -13,11 +13,46 @@ src/
 		client/
 			main.go
 
+# Client API
+
+PUT(K,V) -> OK
+GET(K)   -> V
+where K: string, V: string
+both must be less than 65536 bytes long
+default value is empty string
+
 # Protocol
 
 Golang RPC call: https://golang.org/pkg/net/rpc/
 
-# Files
+# Data File
+
+Each server maintains a number of files:
+- 1.dat
+- 2.dat
+- ...
+
+Each file is a stream of structure of instances:
+- 1-byte: command
+	- 0x00: no-op
+	- 0x01: PUT
+- 1-byte: state
+	- 0x01: pre-accepted
+	- 0x02: accepted
+	- 0x03: committed
+	- 0x04: executed
+- 2-byte: length (in byte) of the key, 0 if no-op
+- 2-byte: length (in byte) of the value, 0 if no-op
+- 2-byte: number of instances interfere
+- variable: instance in interfere
+	- 2-byte: server id
+	- 6-byte: instance id
+- variable: key
+- variable: value
+
+Remark: use big endian all the time
+
+# Source Files
 
 epaxos/common/types.go:
 
