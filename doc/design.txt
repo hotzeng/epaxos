@@ -7,28 +7,49 @@ src/
 		common/
 			types.go
 		server/
+			leader.go
+			auditor.go
 			main.go
 		client/
 			main.go
 
 # Protocol
 
-Golang RPC call:
-https://golang.org/pkg/net/rpc/
+Golang RPC call: https://golang.org/pkg/net/rpc/
 
 # Files
 
 epaxos/common/types.go:
 
 - type RequestMsg struct
+- type RequestOKMsg struct
+
 - type RequestAndReadMsg struct
+- type RequestAndReadOKMsg struct
+
 - type PreAcceptMsg struct
 - type PreAcceptOKMsg struct
+
 - type AcceptMsg struct
 - type AcceptOKMsg struct
+
 - type CommitMsg struct
 - type CommitOKMsg struct // Trivial
+
 - type PrepareMsg struct
 - type PrepareOKMsg struct // Or Nack
+
 - type TryPreAcceptMsg struct
 - type TryPreAcceptOKMsg struct // Or Nack
+
+- type EPaxos struct
+
+epaxos/server/leader.go:
+
+- func (ep *EPaxos) ProcessRequest(msg *RequestMsg) RequestOKMsg, error
+- ...
+
+epaxos/server/auditor.go:
+
+- func (ep *EPaxos) ProcessPreAccept(msg *PreAcceptMsg) PreAcceptOKMsg, error
+- ...
