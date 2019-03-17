@@ -21,9 +21,10 @@ type Command struct {
 }
 
 type Instance struct {
-	Cmd  Command
-	Seq  Sequence
-	Deps []InstRef
+	Cmd   Command
+	Seq   Sequence
+	NDeps int64 `struc:"sizeof=Deps"`
+	Deps  []InstRef
 }
 
 type InstRef struct {
@@ -57,8 +58,11 @@ type PreAcceptMsg struct {
 	Inst Instance
 }
 type PreAcceptOKMsg struct {
-	seq  Sequence
-	deps []InstRef
+	Id    InstRef
+	Inst  Instance
+	Seq   Sequence
+	NDeps int64 `struc:"sizeof=Deps"`
+	Deps  []InstRef
 }
 
 type AcceptMsg struct {
@@ -66,17 +70,16 @@ type AcceptMsg struct {
 	Inst Instance
 }
 type AcceptOKMsg struct {
-	// Empty
+	Id   InstRef
+	Inst Instance
 }
 
 type CommitMsg struct {
-	Id   InstRef
-	Cmd  Command
-	Seq  Sequence
-	Deps []InstRef
-}
-type CommitOKMsg struct {
-	// Empty
+	Id    InstRef
+	Cmd   Command
+	Seq   Sequence
+	NDeps int64 `struc:"sizeof=Deps"`
+	Deps  []InstRef
 }
 
 type PrepareMsg struct {
@@ -86,6 +89,7 @@ type PrepareMsg struct {
 type PrepareOKMsg struct {
 	Ack    bool
 	Ballot BallotNumber
+	Id     InstRef
 	Inst   Instance
 }
 
@@ -94,7 +98,10 @@ type TryPreAcceptMsg struct {
 	Inst Instance
 }
 type TryPreAcceptOKMsg struct {
-	Ack  bool
-	Seq  Sequence
-	Deps []InstRef
+	Id    InstRef
+	Inst  Instance
+	Ack   bool
+	Seq   Sequence
+	NDeps int64 `struc:"sizeof=Deps"`
+	Deps  []InstRef
 }

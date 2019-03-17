@@ -21,6 +21,7 @@ func (ep *EPaxos) appendLog(rep common.ReplicaID, cmd *common.Command) error {
 }
 
 func (ep *EPaxos) recoverFromLog() error {
+	// TODO: seems totally wrong
 	lst := ep.array[ep.self]
 	file := lst.LogFile
 	lst.Mu.Lock()
