@@ -28,8 +28,8 @@ Golang RPC call: https://golang.org/pkg/net/rpc/
 # Data File
 
 Each server maintains a number of files:
+- 0.dat
 - 1.dat
-- 2.dat
 - ...
 
 Each file is a append-only stream of 16-byte struct:
@@ -70,15 +70,15 @@ epaxos/common/types.go:
 
 epaxos/server/leader.go:
 
-- func (ep *EPaxos) ProcessRequest(msg *RequestMsg) RequestOKMsg, error
+- func (ep *EPaxos) RpcRequest(req RequestMsg, res *RequestOKMsg) error
 - ...
 
 epaxos/server/auditor.go:
 
-- func (ep *EPaxos) ProcessPreAccept(msg *PreAcceptMsg) PreAcceptOKMsg, error
+- func (ep *EPaxos) RpcPreAccept(req PreAcceptMsg, res *PreAcceptOKMsg) error
 - ...
 
 epaxos/server/persister.go:
 
-- func (ep *EPaxos) AppendLog(key string, value string) error
+- func (ep *EPaxos) AppendLog(cmd *Command) error
 - func (ep *EPaxos) RecoverFromLog() error
