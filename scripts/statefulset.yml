@@ -38,13 +38,10 @@ spec:
         #   capabilities:
         #     add:
         #       - IPC_LOCK
-        # lifecycle:
-        #   preStop:
-        #     exec:
-        #       command:
-        #       - /bin/sh
-        #       - -c
-        #       - nodetool drain
+        lifecycle:
+          postStart:
+            exec:
+              command: ["/bin/sh", "-c", "export EPAXOS_REPLICA_ID=${HOSTNAME##*-}"]
         env:
           - name: EPAXOS_LISTEN
             value: "0.0.0.0:23333"
@@ -52,8 +49,6 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: spec.replicas
-          - name: EPAXOS_REPLICA_ID
-            # TODO
           - name: EPAXOS_SERVERS_FMT_BIAS
             value: "0"
           - name: EPAXOS_SERVERS_FMT

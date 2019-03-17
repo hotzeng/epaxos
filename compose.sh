@@ -2,7 +2,7 @@
 
 NREPS="$1"
 if [ -z "$NREPS" ]; then
-    echo "Usage: ./compose.sh <nreps>"
+    echo "Usage: ./compose.sh <nreps> <args>..."
     exit 1
 fi
 shift
@@ -41,10 +41,11 @@ EOF
       EPAXOS_REPLICA_ID: "$I"
       EPAXOS_SERVERS_FMT_BIAS: "0"
       EPAXOS_SERVERS_FMT: "epaxos-server-%d:23333"
+      EPAXOS_DATA_PREFIX: "/data/epaxos/data-"
     ports:
       - "$((23333+$I)):23333"
     volumes:
-      - ./data-$I:/data/epaxos
+      - ./data/data-$I:/data/epaxos
     networks:
       - epaxos
 EOF

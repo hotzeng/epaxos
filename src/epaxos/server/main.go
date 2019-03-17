@@ -45,7 +45,7 @@ type EPaxos struct {
 }
 
 func NewEPaxos(nrep int64, rep common.ReplicaID, endpoint string, buff int64) *EPaxos {
-	dir := common.GetEnv("EPAXOS_DATA_PREFIX", "./data-")
+	dir := common.GetEnv("EPAXOS_DATA_PREFIX", "./data/data-")
 	ep := new(EPaxos)
 	ep.self = rep
 	ep.array = make([]*InstList, nrep)
@@ -129,8 +129,8 @@ func main() {
 		log.Fatal(err)
 	}
 	logW.Id = common.ReplicaID(rep)
+
 	log.Printf("This is epaxos-server, version %s", VERSION)
-	endpoint := common.GetEnv("EPAXOS_LISTEN", "0.0.0.0:23333")
 	nrep, err := strconv.ParseInt(common.GetEnv("EPAXOS_NREPLICAS", "1"), 10, 64)
 	if err != nil {
 		log.Fatal(err)
@@ -140,12 +140,13 @@ func main() {
 		log.Fatal(err)
 	}
 
+	endpoint := common.GetEnv("EPAXOS_LISTEN", "0.0.0.0:23333")
 	addr, err := net.ResolveTCPAddr("tcp", endpoint)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	inbound, err := net.ListenTCP("tcp", addr)
+	clientIn, err := net.ListenTCP("tcp", addr)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -161,5 +162,5 @@ func main() {
 	}
 
 	rpc.Register(ep)
-	rpc.Accept(inbound)
+	rpc.Accept(clientIn)
 }
