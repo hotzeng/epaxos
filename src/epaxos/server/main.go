@@ -72,13 +72,22 @@ type EPaxos struct {
 
     // channels to other servers/replicas
     chanel          chan interface
+
+	inbound  chan interface{}
+	rpc      []*net.UDPConn
 }
 
-func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
+func NewEPaxos(nrep int64, rep common.ReplicaID, endpoint string) *EPaxos {
+	localAddr, err := net.ResolveUDPAddr("udp", endpoint)
+	if err != nil {
+		log.Print(err)
+		return nil
+	}
 	dir := common.GetEnv("EPAXOS_DATA_PREFIX", "./data-")
 	ep := new(EPaxos)
 	ep.self = rep
 	ep.array = make([]*InstList, nrep)
+	ep.rpc = make([]*net.UDPConn, nrep)
 	for i := int64(0); i < nrep; i++ {
 		fileName := dir + strconv.FormatInt(i, 10) + ".dat"
 		file, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE, 0644)
@@ -93,10 +102,22 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 			Pending: make([]*StatefulInst, 0),
 		}
 		ep.array[i] = lst
+		remoteAddr, err := net.ResolveUDPAddr("udp", endpoint) // TODO
+		if err != nil {
+			log.Println(err)
+			return nil
+		}
+		conn, err := net.DialUDP("udp", localAddr, remoteAddr)
+		if err != nil {
+			log.Println(err)
+			return nil
+		}
+		ep.rpc[i] = conn
 	}
-	err := ep.recoverFromLog()
+	ep.inbound = make(chan interface{})
+	err = ep.recoverFromLog()
 	if err != nil {
-		log.Print(err)
+		log.Println(err)
 		return nil
 	}
 	return ep
@@ -119,20 +140,23 @@ func main() {
 		log.Fatal(err)
 	}
 
-	addy, err := net.ResolveTCPAddr("tcp", endpoint)
+	addr, err := net.ResolveTCPAddr("tcp", endpoint)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	inbound, err := net.ListenTCP("tcp", addy)
+	inbound, err := net.ListenTCP("tcp", addr)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	ep := NewEPaxos(nrep, common.ReplicaID(rep))
+	ep := NewEPaxos(nrep, common.ReplicaID(rep), endpoint)
 	if ep == nil {
 		log.Fatal("EPaxos creation failed")
 	}
+
+	go ep.listenUdp(endpoint)
+
 	rpc.Register(ep)
 	rpc.Accept(inbound)
 }
