@@ -2,6 +2,7 @@
 *.swo
 *.swn
 *~
+data-*
 
 /bin
 /pkg
