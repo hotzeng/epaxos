@@ -10,23 +10,27 @@ import "epaxos/common"
 
 type InstState int32
 type LeaderState int32
+type ChannelID  int32
 
+//some global variables
 const (
-	PreAccepted InstState = 0
-	Accepted    InstState = 1
-	Committed   InstState = 2
-	Prepare     InstState = 3
+    CHAN_MAX = 100  // the maximum number of channels is 100
+
 )
 
-// by yuzeng
-// the states for command leader
+
 const (
-    LeaderPreAccept     LeaderState = 0
-    LeaderPreAcceptOK   LeaderState = 1
-    LeaderAccept        LeaderState = 2
-    LeaderCommit        LeaderState = 3
-    LeaderIdle          LeaderState = 4
+	PreAccepted     InstState = 0
+    PreAcceptedOK   InstState = 4
+	Accepted        InstState = 1
+	Committed       InstState = 2
+	Prepare         InstState = 3
 )
+
+type ChangeStateMsg struct {
+    success     bool
+
+}
 
 type StatefulInst struct {
 	inst  common.Instance
@@ -40,19 +44,34 @@ type InstList struct {
 	Pending []*StatefulInst
 }
 
+// the state machine for each instance
+type InstanceState struct {
+    self            int
+    // channels for state transitions
+    getReq          chan bool
+    getPreAcceptOK  chan bool
+    selectFastPath  chan bool
+    getAcceptOK     chan bool
+
+    state           InstState
+}
+
+
 type EPaxos struct {
 	self     common.ReplicaID
 	lastInst common.InstanceID
 	array    []*InstList
 	data     map[common.Key]common.Value
 
-    // by yuzeng
-    state   LeaderState
-    // channels for state transitions
-    getReq          chan bool
-    getPreAcceptOK  chan bool
-    selectFastPath  chan bool
-    getAcceptOK     chan bool
+    // records which channel is allocated for each instance
+    Inst2Chan       map[common.InstanceID]ChannelID
+
+    // channels for Instance state machines
+    PreAcceptChan   [CHAN_MAX]chan PreAcceptMsg
+    // TODO: more channels
+
+    // channels to other servers/replicas
+    chanel          chan interface
 }
 
 func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
