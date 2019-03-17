@@ -8,8 +8,11 @@ import "strings"
 import "strconv"
 import "epaxos/common"
 
+var VERSION string
+
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.Printf("This is epaxos-server, version %s", VERSION)
 	endpoint := common.GetEnv("EPAXOS_SERVER", "localhost:23333")
 
 	client, err := rpc.Dial("tcp", endpoint)

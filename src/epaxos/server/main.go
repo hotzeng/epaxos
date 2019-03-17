@@ -10,6 +10,8 @@ import "net"
 import "net/rpc"
 import "epaxos/common"
 
+var VERSION string
+
 type InstState int32
 
 const (
@@ -101,6 +103,7 @@ func (ep *EPaxos) SendProbe(target common.ReplicaID, ret *string) error {
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.Printf("This is epaxos-server, version %s", VERSION)
 	endpoint := common.GetEnv("EPAXOS_LISTEN", "0.0.0.0:23333")
 	nrep, err := strconv.ParseInt(common.GetEnv("EPAXOS_NREPLICAS", "1"), 10, 64)
 	if err != nil {
