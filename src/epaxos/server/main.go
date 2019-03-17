@@ -14,13 +14,27 @@ import "epaxos/common"
 var VERSION string
 
 type InstState int32
+type LeaderState int32
+type ChannelID int32
+
+//some global variables
+const (
+	CHAN_MAX = 100 // the maximum number of channels is 100
+
+)
 
 const (
-	PreAccepted InstState = 0
-	Accepted    InstState = 1
-	Committed   InstState = 2
-	Prepare     InstState = 3
+	PreAccepted   InstState = 0
+	PreAcceptedOK InstState = 4
+	Accepted      InstState = 1
+	Committed     InstState = 2
+	Prepare       InstState = 3
+	Idle          InstState = 5
 )
+
+type ChangeStateMsg struct {
+	success bool
+}
 
 type StatefulInst struct {
 	inst  common.Instance
@@ -31,17 +45,41 @@ type InstList struct {
 	Mu      sync.Mutex
 	LogFile *os.File
 	Offset  common.InstanceID
-	Pending []*StatefulInst
+	Pending []*StatefulInst // one per InstanceID
+}
+
+// the state machine for each instance
+type InstanceState struct {
+	self int
+	// channels for state transitions
+	getReq         chan bool
+	getPreAcceptOK chan bool
+	selectFastPath chan bool
+	getAcceptOK    chan bool
+
+	state InstState
 }
 
 type EPaxos struct {
 	self     common.ReplicaID
 	lastInst common.InstanceID
-	array    []*InstList
+	array    []*InstList // one InstList per replica
 	data     map[common.Key]common.Value
 	inbound  *chan interface{}
 	udp      *net.UDPConn
 	rpc      []chan interface{}
+	peers    int // number of peers, including itself
+
+	// records which channel is allocated for each instance
+	inst2Chan map[common.InstanceID]ChannelID
+	chanHead  int
+	chanTail  int
+
+	// channels for Instance state machines
+	innerChan [CHAN_MAX]chan interface{}
+
+	// channels to other servers/replicas
+	inbound chan interface{}
 }
 
 func NewEPaxos(nrep int64, rep common.ReplicaID, endpoint string, buff int64) *EPaxos {
