@@ -25,6 +25,7 @@ const (
 	Accepted        InstState = 1
 	Committed       InstState = 2
 	Prepare         InstState = 3
+    Idle            InstState = 5
 )
 
 type ChangeStateMsg struct {
@@ -41,7 +42,7 @@ type InstList struct {
 	Mu      sync.Mutex
 	LogFile *os.File
 	Offset  common.InstanceID
-	Pending []*StatefulInst
+	Pending []*StatefulInst     // one per InstanceID
 }
 
 // the state machine for each instance
@@ -60,20 +61,21 @@ type InstanceState struct {
 type EPaxos struct {
 	self     common.ReplicaID
 	lastInst common.InstanceID
-	array    []*InstList
+	array    []*InstList    // one InstList per replica
 	data     map[common.Key]common.Value
+    peers    int    // number of peers, including itself
 
     // records which channel is allocated for each instance
-    Inst2Chan       map[common.InstanceID]ChannelID
+    inst2Chan   map[common.InstanceID]ChannelID
+    chanHead    int
+    chanTail    int
 
     // channels for Instance state machines
-    PreAcceptChan   [CHAN_MAX]chan PreAcceptMsg
-    // TODO: more channels
+    innerChan   [CHAN_MAX]chan interface{}
 
     // channels to other servers/replicas
-    chanel          chan interface
-
 	inbound  chan interface{}
+
 	rpc      []*net.UDPConn
 }
 
