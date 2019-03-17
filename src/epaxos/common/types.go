@@ -1,8 +1,5 @@
 package common
 
-import "os"
-import "sync"
-
 type CmdType int32
 type Key int32
 type Value int64
@@ -100,18 +97,4 @@ type TryPreAcceptOKMsg struct {
 	Ack  bool
 	Seq  Sequence
 	Deps []InstRef
-}
-
-type InstList struct {
-	Mu      sync.Mutex
-	LogFile *os.File
-	Offset  InstanceID
-	Pending []Instance
-}
-
-type EPaxos struct {
-	Self     ReplicaID
-	LastInst InstanceID
-	Array    map[ReplicaID]*InstList
-	Data     map[Key]Value
 }
