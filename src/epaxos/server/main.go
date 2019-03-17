@@ -2,6 +2,8 @@ package main
 
 import "os"
 import "sync"
+import "errors"
+import "fmt"
 import "log"
 import "strconv"
 import "net"
@@ -67,7 +69,7 @@ func NewEPaxos(nrep int64, rep common.ReplicaID, endpoint string) *EPaxos {
 		log.Println(err)
 		return nil
 	}
-	log.Println("ListenUDP on %s", endpoint)
+	log.Printf("ListenUDP on %s\n", endpoint)
 	ep.udp, err = net.ListenUDP("udp", addr)
 	if err != nil {
 		log.Println(err)
@@ -81,13 +83,24 @@ func NewEPaxos(nrep int64, rep common.ReplicaID, endpoint string) *EPaxos {
 	return ep
 }
 
-func (*EPaxos) HelloWorld(name string, ret *string) error {
-	log.Println(name)
-	*ret = "Hello " + name
+func (ep *EPaxos) ReadyProbe(payload string, ret *string) error {
+	log.Printf("EPaxos.ReadyProbe with %s\n", payload)
+	*ret = fmt.Sprintf("I'm EPaxos #%d", ep.self)
+	return nil
+}
+
+func (ep *EPaxos) SendProbe(target common.ReplicaID, ret *string) error {
+	log.Printf("EPaxos.SendProbe to %d\n", target)
+	if int(target) >= len(ep.rpc) {
+		return errors.New("out of range")
+	}
+	ep.rpc[target] <- common.ProbeMsg{}
+	*ret = fmt.Sprintf("I'm EPaxos #%d", ep.self)
 	return nil
 }
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	endpoint := common.GetEnv("EPAXOS_LISTEN", "0.0.0.0:23333")
 	nrep, err := strconv.ParseInt(common.GetEnv("EPAXOS_NREPLICAS", "1"), 10, 64)
 	if err != nil {
@@ -113,7 +126,10 @@ func main() {
 		log.Fatal("EPaxos creation failed")
 	}
 
-	ep.forkUdp()
+	err = ep.forkUdp()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	rpc.Register(ep)
 	rpc.Accept(inbound)

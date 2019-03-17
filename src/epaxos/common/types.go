@@ -105,3 +105,7 @@ type TryPreAcceptOKMsg struct {
 	NDeps int64 `struc:"sizeof=Deps"`
 	Deps  []InstRef
 }
+
+type ProbeMsg struct {
+	Replica ReplicaID
+}

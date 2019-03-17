@@ -52,6 +52,8 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: spec.replicas
+          - name: EPAXOS_SERVERS_FMT_BIAS
+            value: "0"
           - name: EPAXOS_SERVERS_FMT
             value: "epaxos-%d.epaxos.default.svc.cluster.local"
           - name: EPAXOS_DATA_PREFIX

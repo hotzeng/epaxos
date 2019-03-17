@@ -3,8 +3,8 @@ package main
 import "fmt"
 import "log"
 import "bytes"
-import "net"
 import "strconv"
+import "net"
 import "github.com/lunixbochs/struc"
 import "epaxos/common"
 
@@ -14,12 +14,17 @@ func (ep *EPaxos) makeMulticast(msg interface{}, nrep int64) {
 	}
 }
 
-func (ep *EPaxos) forkUdp() {
-	tmp := GetEnv("EPAXOS_SERVERS_FMT", "localhost:23333")
+func (ep *EPaxos) forkUdp() error {
+	bias, err := strconv.ParseInt(common.GetEnv("EPAXOS_SERVERS_FMT_BIAS", "1"), 10, 64)
+	if err != nil {
+		return err
+	}
+	tmp := common.GetEnv("EPAXOS_SERVERS_FMT", "127.0.0.%d:23333")
 	go ep.readUdp()
 	for i, ch := range ep.rpc {
-		go ep.writeUdp(fmt.Sprintf(tmp, i), ch)
+		go ep.writeUdp(fmt.Sprintf(tmp, int64(i)+bias), ch)
 	}
+	return nil
 }
 
 func (ep *EPaxos) writeUdp(endpoint string, ch chan interface{}) error {
@@ -50,6 +55,8 @@ func (ep *EPaxos) writeUdp(endpoint string, ch chan interface{}) error {
 			buf.WriteByte(0x05)
 		case common.TryPreAcceptOKMsg:
 			buf.WriteByte(0x15)
+		case common.ProbeMsg:
+			buf.WriteByte(0xff)
 		default:
 			log.Println("Unknown msg type")
 			continue
@@ -117,6 +124,15 @@ func (ep *EPaxos) readUdp() error {
 			var m common.TryPreAcceptOKMsg
 			err = struc.Unpack(r, &m)
 			msg = m
+		case 0xff:
+			var m common.ProbeMsg
+			err = struc.Unpack(r, &m)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			log.Printf("Received ProbeMsg from %d\n", m.Replica)
+			continue
 		default:
 			log.Println("Ill-formed packet number")
 			continue

@@ -4,9 +4,12 @@ import "os"
 import "bufio"
 import "net/rpc"
 import "log"
+import "strings"
+import "strconv"
 import "epaxos/common"
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	endpoint := common.GetEnv("EPAXOS_SERVER", "localhost:23333")
 
 	client, err := rpc.Dial("tcp", endpoint)
@@ -20,12 +23,28 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Println(line)
+		line = line[0:len(line)-1]
 		var reply string
-		err = client.Call("EPaxos.HelloWorld", line, &reply) // TODO
-		if err != nil {
-			log.Fatal(err)
+		if line == "ready" {
+			err = client.Call("EPaxos.ReadyProbe", "hello", &reply)
+			if err != nil {
+				log.Println(err)
+			}
+			log.Println(reply)
+		} else if strings.HasPrefix(line, "send ") {
+			id, err := strconv.ParseInt(line[5:], 10, 64)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			err = client.Call("EPaxos.SendProbe", id, &reply)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			log.Println(reply)
+		} else {
+			log.Println("ready or send #")
 		}
-		log.Println(reply)
 	}
 }
