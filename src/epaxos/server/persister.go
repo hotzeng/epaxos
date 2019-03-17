@@ -4,40 +4,45 @@ import "io"
 import "github.com/lunixbochs/struc"
 import "epaxos/common"
 
-func AppendLog(ep *common.EPaxos, rep common.ReplicaID, cmd *common.Command) error {
-	var err error
-	lst := ep.Array[rep]
+func (ep *EPaxos) appendLog(rep common.ReplicaID, cmd *common.Command) error {
+	lst := ep.array[rep]
 	file := lst.LogFile
 	lst.Mu.Lock()
 	defer lst.Mu.Unlock()
-	if err = struc.Pack(file, cmd); err != nil {
+	err := struc.Pack(file, cmd)
+	if err != nil {
 		return err
 	}
-	if err = file.Sync(); err != nil {
+	err = file.Sync()
+	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func RecoverFromLog(ep *common.EPaxos) error {
-	var err error
-	lst := ep.Array[ep.Self]
+func (ep *EPaxos) recoverFromLog() error {
+	lst := ep.array[ep.self]
 	file := lst.LogFile
 	lst.Mu.Lock()
 	defer lst.Mu.Unlock()
-	if _, err = file.Seek(0, 0); err != nil {
+	_, err := file.Seek(0, 0)
+	if err != nil {
 		return err
 	}
+	ep.lastInst = 0
+	ep.data = make(map[common.Key]common.Value)
 	cmd := &common.Command{}
 	for {
-		if err = struc.Unpack(file, &cmd); err != nil {
+		err = struc.Unpack(file, &cmd)
+		if err != nil {
 			if err == io.EOF {
 				break
 			}
 			return err
 		}
+		ep.lastInst++
 		if cmd.Cmd == common.CmdPut {
-			ep.Data[cmd.Key] = cmd.Value
+			ep.data[cmd.Key] = cmd.Value
 		}
 	}
 	return nil
