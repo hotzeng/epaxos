@@ -44,7 +44,7 @@ type EPaxos struct {
 	rpc      []chan interface{}
 }
 
-func NewEPaxos(nrep int64, rep common.ReplicaID, endpoint string) *EPaxos {
+func NewEPaxos(nrep int64, rep common.ReplicaID, endpoint string, buff int64) *EPaxos {
 	dir := common.GetEnv("EPAXOS_DATA_PREFIX", "./data-")
 	ep := new(EPaxos)
 	ep.self = rep
@@ -64,7 +64,7 @@ func NewEPaxos(nrep int64, rep common.ReplicaID, endpoint string) *EPaxos {
 			Pending: make([]*StatefulInst, 0),
 		}
 		ep.array[i] = lst
-		ep.rpc[i] = make(chan interface{})
+		ep.rpc[i] = make(chan interface{}, buff)
 	}
 	ep.inbound = &ep.rpc[ep.self]
 	addr, err := net.ResolveUDPAddr("udp", endpoint)
@@ -88,7 +88,7 @@ func NewEPaxos(nrep int64, rep common.ReplicaID, endpoint string) *EPaxos {
 
 func (ep *EPaxos) ReadyProbe(payload string, ret *string) error {
 	log.Printf("EPaxos.ReadyProbe with %s\n", payload)
-	*ret = fmt.Sprintf("I'm EPaxos #%d", ep.self)
+	*ret = fmt.Sprintf("I'm EPaxos #%d, I'm alive", ep.self)
 	return nil
 }
 
@@ -97,8 +97,12 @@ func (ep *EPaxos) SendProbe(target common.ReplicaID, ret *string) error {
 	if int(target) >= len(ep.rpc) {
 		return errors.New("out of range")
 	}
-	ep.rpc[target] <- common.ProbeMsg{}
-	*ret = fmt.Sprintf("I'm EPaxos #%d", ep.self)
+	if target == ep.self {
+		*ret = fmt.Sprintf("I'm EPaxos #%d, I don't send message to myself", ep.self)
+		return nil
+	}
+	ep.rpc[target] <- common.ProbeMsg{Replica: ep.self}
+	*ret = fmt.Sprintf("I'm EPaxos #%d, I sent message to %d", ep.self, target)
 	return nil
 }
 
@@ -107,7 +111,7 @@ type logWriter struct {
 }
 
 func (writer *logWriter) Write(bytes []byte) (int, error) {
-    return fmt.Printf(
+	return fmt.Printf(
 		"%s #%d %s",
 		time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
 		writer.Id,
@@ -116,15 +120,22 @@ func (writer *logWriter) Write(bytes []byte) (int, error) {
 }
 
 func main() {
+	logW := new(logWriter)
+	logW.Id = -1
 	log.SetFlags(log.Lshortfile)
-	log.SetOutput(new(logWriter))
+	log.SetOutput(logW)
+	rep, err := strconv.ParseInt(common.GetEnv("EPAXOS_REPLICA_ID", "0"), 10, 64)
+	if err != nil {
+		log.Fatal(err)
+	}
+	logW.Id = common.ReplicaID(rep)
 	log.Printf("This is epaxos-server, version %s", VERSION)
 	endpoint := common.GetEnv("EPAXOS_LISTEN", "0.0.0.0:23333")
 	nrep, err := strconv.ParseInt(common.GetEnv("EPAXOS_NREPLICAS", "1"), 10, 64)
 	if err != nil {
 		log.Fatal(err)
 	}
-	rep, err := strconv.ParseInt(common.GetEnv("EPAXOS_REPLICA_ID", "0"), 10, 64)
+	buff, err := strconv.ParseInt(common.GetEnv("EPAXOS_BUFFER", "1024"), 10, 64)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -139,7 +150,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ep := NewEPaxos(nrep, common.ReplicaID(rep), endpoint)
+	ep := NewEPaxos(nrep, common.ReplicaID(rep), endpoint, buff)
 	if ep == nil {
 		log.Fatal("EPaxos creation failed")
 	}

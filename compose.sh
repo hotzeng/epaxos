@@ -34,11 +34,11 @@ EOF
       EPAXOS_NREPLICAS: "$NREPS"
       EPAXOS_REPLICA_ID: "$I"
       EPAXOS_SERVERS_FMT_BIAS: "0"
-      EPAXOS_SERVERS_FMT: "epaxos-server-%d"
+      EPAXOS_SERVERS_FMT: "epaxos-server-%d:23333"
     ports:
       - "$((23333+$I)):23333"
     volumes:
-      - ./data-$I/data/epaxos
+      - ./data-$I:/data/epaxos
     networks:
       - epaxos
 EOF

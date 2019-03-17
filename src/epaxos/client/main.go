@@ -26,7 +26,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		line = line[0:len(line)-1]
+		line = line[0 : len(line)-1]
 		var reply string
 		if line == "ready" {
 			err = client.Call("EPaxos.ReadyProbe", "hello", &reply)

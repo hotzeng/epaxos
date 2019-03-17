@@ -57,7 +57,7 @@ spec:
           - name: EPAXOS_SERVERS_FMT_BIAS
             value: "0"
           - name: EPAXOS_SERVERS_FMT
-            value: "epaxos-%d.epaxos.default.svc.cluster.local"
+            value: "epaxos-%d.epaxos.default.svc.cluster.local:23333"
           - name: EPAXOS_DATA_PREFIX
             value: "/data/epaxos/data-"
         # readinessProbe:

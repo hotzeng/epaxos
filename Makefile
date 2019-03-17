@@ -9,6 +9,9 @@ bin/server: $(FILES) VERSION
 bin/client: $(FILES) VERSION
 	go install -ldflags "$(LDFLAGS)" epaxos/client
 
+debug: VERSION
+	docker build -t b1f6c1c4/epaxos:latest -f Dockerfile.debug .
+
 dist: VERSION
 	docker build -t b1f6c1c4/epaxos:latest .
 	docker push b1f6c1c4/epaxos:latest

@@ -25,7 +25,9 @@ func (ep *EPaxos) forkUdp() error {
 	tmp := common.GetEnv("EPAXOS_SERVERS_FMT", "127.0.0.%d:23333")
 	go ep.readUdp()
 	for i, ch := range ep.rpc {
-		go ep.writeUdp(fmt.Sprintf(tmp, int64(i)+bias), ch)
+		if common.ReplicaID(i) != ep.self {
+			go ep.writeUdp(fmt.Sprintf(tmp, int64(i)+bias), ch)
+		}
 	}
 	return nil
 }
@@ -38,33 +40,53 @@ func (ep *EPaxos) writeUdp(endpoint string, ch chan interface{}) error {
 	}
 	var buf bytes.Buffer
 	for {
+		var err error
 		msg := <-ch
 		switch msg.(type) {
 		case common.PreAcceptMsg:
 			buf.WriteByte(0x01)
+			m := msg.(common.PreAcceptMsg)
+			err = struc.Pack(&buf, &m)
 		case common.PreAcceptOKMsg:
 			buf.WriteByte(0x11)
+			m := msg.(common.PreAcceptOKMsg)
+			err = struc.Pack(&buf, &m)
 		case common.AcceptMsg:
 			buf.WriteByte(0x02)
+			m := msg.(common.AcceptMsg)
+			err = struc.Pack(&buf, &m)
 		case common.AcceptOKMsg:
 			buf.WriteByte(0x12)
+			m := msg.(common.AcceptOKMsg)
+			err = struc.Pack(&buf, &m)
 		case common.CommitMsg:
 			buf.WriteByte(0x03)
+			m := msg.(common.CommitMsg)
+			err = struc.Pack(&buf, &m)
 		case common.PrepareMsg:
 			buf.WriteByte(0x04)
+			m := msg.(common.PrepareMsg)
+			err = struc.Pack(&buf, &m)
 		case common.PrepareOKMsg:
 			buf.WriteByte(0x14)
+			m := msg.(common.PrepareOKMsg)
+			err = struc.Pack(&buf, &m)
 		case common.TryPreAcceptMsg:
 			buf.WriteByte(0x05)
+			m := msg.(common.TryPreAcceptMsg)
+			err = struc.Pack(&buf, &m)
 		case common.TryPreAcceptOKMsg:
 			buf.WriteByte(0x15)
+			m := msg.(common.TryPreAcceptOKMsg)
+			err = struc.Pack(&buf, &m)
 		case common.ProbeMsg:
 			buf.WriteByte(0xff)
+			m := msg.(common.ProbeMsg)
+			err = struc.Pack(&buf, &m)
 		default:
 			log.Println("Unknown msg type")
 			continue
 		}
-		err := struc.Pack(&buf, msg)
 		if err != nil {
 			log.Println(err)
 			continue
@@ -130,12 +152,8 @@ func (ep *EPaxos) readUdp() error {
 		case 0xff:
 			var m common.ProbeMsg
 			err = struc.Unpack(r, &m)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
+			msg = m
 			log.Printf("Received ProbeMsg from %d\n", m.Replica)
-			continue
 		default:
 			log.Println("Ill-formed packet number")
 			continue
