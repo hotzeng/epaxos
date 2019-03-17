@@ -8,12 +8,23 @@ import "net/rpc"
 import "epaxos/common"
 
 type InstState int32
+type LeaderState int32
 
 const (
 	PreAccepted InstState = 0
 	Accepted    InstState = 1
 	Committed   InstState = 2
 	Prepare     InstState = 3
+)
+
+// by yuzeng
+// the states for command leader
+const (
+    LeaderPreAccept     LeaderState = 0
+    LeaderPreAcceptOK   LeaderState = 1
+    LeaderAccept        LeaderState = 2
+    LeaderCommit        LeaderState = 3
+    LeaderIdle          LeaderState = 4
 )
 
 type StatefulInst struct {
@@ -33,6 +44,14 @@ type EPaxos struct {
 	lastInst common.InstanceID
 	array    map[common.ReplicaID]*InstList
 	data     map[common.Key]common.Value
+
+    // by yuzeng
+    state   LeaderState
+    // channels for state transitions
+    getReq          chan bool
+    getPreAcceptOK  chan bool
+    selectFastPath  chan bool
+    getAcceptOK     chan bool
 }
 
 func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
