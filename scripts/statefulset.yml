@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: epaxos
+  labels:
+    app: epaxos
+spec:
+  serviceName: epaxos
+  replicas: 3
+  selector:
+    matchLabels:
+      app: epaxos
+  template:
+    metadata:
+      labels:
+        app: epaxos
+    spec:
+      terminationGracePeriodSeconds: 3
+      containers:
+      - name: epaxos
+        image: b1f6c1c4/epaxos:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 23333
+          name: server-server
+          protocol: UDP
+        - containerPort: 23333
+          name: client-server
+          protocol: TCP
+        # resources:
+        #   limits:
+        #     cpu: "500m"
+        #     memory: 1Gi
+        #   requests:
+        #     cpu: "500m"
+        #     memory: 1Gi
+        # securityContext:
+        #   capabilities:
+        #     add:
+        #       - IPC_LOCK
+        # lifecycle:
+        #   preStop:
+        #     exec:
+        #       command: 
+        #       - /bin/sh
+        #       - -c
+        #       - nodetool drain
+        env:
+          - name: EPAXOS_LISTEN
+            value: "0.0.0.0:23333"
+          - name: EPAXOS_NREPLICAS
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.replicas
+          - name: EPAXOS_SERVERS_FMT
+            value: "epaxos-%d.epaxos.default.svc.cluster.local"
+          - name: EPAXOS_DATA_PREFIX
+            value: "/data/epaxos/data-"
+        # - name: POD_IP
+        #   valueFrom:
+        #     fieldRef:
+        #       fieldPath: status.podIP
+        # readinessProbe:
+        #   exec:
+        #     command:
+        #     - /go/bin/ready-probe
+        #   initialDelaySeconds: 5
+        #   timeoutSeconds: 3
+        # These volume mounts are persistent. They are like inline claims,
+        # but not exactly because the names need to match exactly one of
+        # the stateful pod volumes.
+        volumeMounts:
+        - name: epaxos-data
+          mountPath: /data/epaxos
+  # These are converted to volume claims by the controller
+  # and mounted at the paths mentioned above.
+  # do not use these in production until ssd GCEPersistentDisk or other ssd pd
+  volumeClaimTemplates:
+  - metadata:
+      name: epaxos-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: fast
+      resources:
+        requests:
+          storage: 1Gi

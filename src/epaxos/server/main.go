@@ -67,6 +67,7 @@ func NewEPaxos(nrep int64, rep common.ReplicaID, endpoint string) *EPaxos {
 		log.Println(err)
 		return nil
 	}
+	log.Println("ListenUDP on %s", endpoint)
 	ep.udp, err = net.ListenUDP("udp", addr)
 	if err != nil {
 		log.Println(err)

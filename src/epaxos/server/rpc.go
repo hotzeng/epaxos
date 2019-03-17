@@ -1,5 +1,6 @@
 package main
 
+import "fmt"
 import "log"
 import "bytes"
 import "net"
@@ -14,13 +15,15 @@ func (ep *EPaxos) makeMulticast(msg interface{}, nrep int64) {
 }
 
 func (ep *EPaxos) forkUdp() {
+	tmp := GetEnv("EPAXOS_SERVERS_FMT", "localhost:23333")
 	go ep.readUdp()
 	for i, ch := range ep.rpc {
-		go ep.writeUdp("localhost:2333"+strconv.FormatInt(int64(i), 10), ch) // TODO
+		go ep.writeUdp(fmt.Sprintf(tmp, i), ch)
 	}
 }
 
 func (ep *EPaxos) writeUdp(endpoint string, ch chan interface{}) error {
+	log.Printf("EPaxos.writeUdp on %s\n", endpoint)
 	addr, err := net.ResolveUDPAddr("udp", endpoint)
 	if err != nil {
 		return err
