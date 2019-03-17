@@ -8,10 +8,13 @@ import "net"
 import "github.com/lunixbochs/struc"
 import "epaxos/common"
 
-func (ep *EPaxos) makeMulticast(msg interface{}, nrep int64) {
+func (ep *EPaxos) makeMulticast(msg interface{}, nrep int64) []common.ReplicaID {
+	var res []common.ReplicaID
 	for i := int64(0); i < nrep; i++ {
+		res = append(res, common.ReplicaID(i))
 		ep.rpc[i] <- msg
 	}
+	return res
 }
 
 func (ep *EPaxos) forkUdp() error {

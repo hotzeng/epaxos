@@ -1,5 +1,6 @@
 package main
 
+import "time"
 import "os"
 import "sync"
 import "errors"
@@ -101,8 +102,22 @@ func (ep *EPaxos) SendProbe(target common.ReplicaID, ret *string) error {
 	return nil
 }
 
+type logWriter struct {
+	Id common.ReplicaID
+}
+
+func (writer *logWriter) Write(bytes []byte) (int, error) {
+    return fmt.Printf(
+		"%s #%d %s",
+		time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+		writer.Id,
+		string(bytes),
+	)
+}
+
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.SetFlags(log.Lshortfile)
+	log.SetOutput(new(logWriter))
 	log.Printf("This is epaxos-server, version %s", VERSION)
 	endpoint := common.GetEnv("EPAXOS_LISTEN", "0.0.0.0:23333")
 	nrep, err := strconv.ParseInt(common.GetEnv("EPAXOS_NREPLICAS", "1"), 10, 64)

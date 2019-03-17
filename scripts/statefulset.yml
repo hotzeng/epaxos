@@ -41,7 +41,7 @@ spec:
         # lifecycle:
         #   preStop:
         #     exec:
-        #       command: 
+        #       command:
         #       - /bin/sh
         #       - -c
         #       - nodetool drain
@@ -52,16 +52,14 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: spec.replicas
+          - name: EPAXOS_REPLICA_ID
+            # TODO
           - name: EPAXOS_SERVERS_FMT_BIAS
             value: "0"
           - name: EPAXOS_SERVERS_FMT
             value: "epaxos-%d.epaxos.default.svc.cluster.local"
           - name: EPAXOS_DATA_PREFIX
             value: "/data/epaxos/data-"
-        # - name: POD_IP
-        #   valueFrom:
-        #     fieldRef:
-        #       fieldPath: status.podIP
         # readinessProbe:
         #   exec:
         #     command:

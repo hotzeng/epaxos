@@ -7,3 +7,4 @@ data-*
 /bin
 /pkg
 /VERSION
+/docker-compose.yml
