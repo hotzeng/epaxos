@@ -15,9 +15,9 @@ const (
 )
 
 type Command struct {
-	Cmd   CmdType
-	Key   Key
-	Value Value
+	CmdType CmdType
+	Key     Key
+	Value   Value
 }
 
 type Instance struct {
@@ -58,11 +58,12 @@ type PreAcceptMsg struct {
 	Inst Instance
 }
 type PreAcceptOKMsg struct {
-	Id    InstRef
-	Inst  Instance
-	Seq   Sequence
-	NDeps int64 `struc:"sizeof=Deps"`
-	Deps  []InstRef
+	Id      InstRef
+	Inst    Instance
+	Seq     Sequence
+	NDeps   int64 `struc:"sizeof=Deps"`
+	Deps    []InstRef
+    sender  ReplicaID
 }
 
 type AcceptMsg struct {
@@ -70,8 +71,9 @@ type AcceptMsg struct {
 	Inst Instance
 }
 type AcceptOKMsg struct {
-	Id   InstRef
-	Inst Instance
+	Id      InstRef
+	Inst    Instance
+    sender  ReplicaID
 }
 
 type CommitMsg struct {
