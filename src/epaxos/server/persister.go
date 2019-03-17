@@ -40,6 +40,7 @@ func (ep *EPaxos) recoverFromLog() error {
 			}
 			return err
 		}
+		lst.Offset++
 		ep.lastInst++
 		if cmd.Cmd == common.CmdPut {
 			ep.data[cmd.Key] = cmd.Value

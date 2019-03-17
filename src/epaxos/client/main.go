@@ -4,23 +4,28 @@ import "os"
 import "log"
 import "bufio"
 import "net/rpc"
+import "epaxos/common"
 
 func main() {
-	client, err := rpc.Dial("tcp", "localhost:23333")
+	endpoint := common.GetEnv("EPAXOS_SERVER", "localhost:23333")
+
+	client, err := rpc.Dial("tcp", endpoint)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	in := bufio.NewReader(os.Stdin)
 	for {
-		line, _, err := in.ReadLine()
+		line, err := in.ReadString('\n')
 		if err != nil {
 			log.Fatal(err)
 		}
-		var reply bool
-		err = client.Call("EPaxos.TODO", line, &reply) // TODO
+		log.Println(line)
+		var reply string
+		err = client.Call("EPaxos.HelloWorld", line, &reply) // TODO
 		if err != nil {
 			log.Fatal(err)
 		}
+		log.Println(reply)
 	}
 }
