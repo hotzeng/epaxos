@@ -1,8 +1,10 @@
 package main
 
-import "io"
-import "github.com/lunixbochs/struc"
-import "epaxos/common"
+import (
+	"epaxos/common"
+	"github.com/lunixbochs/struc"
+	"io"
+)
 
 func (ep *EPaxos) appendLog(rep common.ReplicaID, cmd *common.Command) error {
 	lst := ep.array[rep]

@@ -1,12 +1,14 @@
 package main
 
-import "fmt"
-import "log"
-import "bytes"
-import "strconv"
-import "net"
-import "github.com/lunixbochs/struc"
-import "epaxos/common"
+import (
+	"bytes"
+	"epaxos/common"
+	"fmt"
+	"github.com/lunixbochs/struc"
+	"log"
+	"net"
+	"strconv"
+)
 
 func (ep *EPaxos) makeMulticast(msg interface{}, nrep int64) []common.ReplicaID {
 	var res []common.ReplicaID

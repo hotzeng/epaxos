@@ -1,16 +1,17 @@
 package main
 
-import "time"
-import "os"
-import "sync"
-import "errors"
-import "math/rand"
-import "fmt"
-import "log"
-import "strconv"
-import "net"
-import "net/rpc"
-import "epaxos/common"
+import (
+	"epaxos/common"
+	"fmt"
+	"log"
+	"math/rand"
+	"net"
+	"net/rpc"
+	"os"
+	"strconv"
+	"sync"
+	"time"
+)
 
 var VERSION string
 
@@ -88,35 +89,6 @@ func NewEPaxos(nrep int64, rep common.ReplicaID, endpoint string, buff int64) *E
 		return nil
 	}
 	return ep
-}
-
-func (ep *EPaxos) ReadyProbe(payload string, ret *string) error {
-	log.Printf("EPaxos.ReadyProbe with %s\n", payload)
-	*ret = fmt.Sprintf("I'm EPaxos #%d, I'm alive", ep.self)
-	return nil
-}
-
-func (ep *EPaxos) SendProbe(target common.ReplicaID, ret *string) error {
-	log.Printf("EPaxos.SendProbe to %d\n", target)
-	if int(target) >= len(ep.rpc) {
-		return errors.New("out of range")
-	}
-	if target == ep.self {
-		*ret = fmt.Sprintf("I'm EPaxos #%d, I don't send message to myself", ep.self)
-		return nil
-	}
-	probeId, ch := ep.allocProbe()
-	defer ep.freeProbe(probeId)
-	ep.rpc[target] <- common.ProbeMsg{
-		Replica:      ep.self,
-		Payload:      probeId,
-		RequestReply: true,
-	}
-	switch {
-	case <-ch:
-	}
-	*ret = fmt.Sprintf("I'm EPaxos #%d, I sent message to %d and got reply", ep.self, target)
-	return nil
 }
 
 type logWriter struct {

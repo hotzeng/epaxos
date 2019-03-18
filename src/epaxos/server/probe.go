@@ -1,8 +1,12 @@
 package main
 
-import "log"
-import "math/rand"
-import "epaxos/common"
+import (
+	"epaxos/common"
+	"errors"
+	"fmt"
+	"log"
+	"math/rand"
+)
 
 func (ep *EPaxos) allocProbe() (int64, chan bool) {
 	ep.probesL.Lock()
@@ -45,4 +49,33 @@ func (ep *EPaxos) recvProbe(m *common.ProbeMsg) {
 			ch <- true
 		}
 	}
+}
+
+func (ep *EPaxos) ReadyProbe(payload string, ret *string) error {
+	log.Printf("EPaxos.ReadyProbe with %s\n", payload)
+	*ret = fmt.Sprintf("I'm EPaxos #%d, I'm alive", ep.self)
+	return nil
+}
+
+func (ep *EPaxos) SendProbe(target common.ReplicaID, ret *string) error {
+	log.Printf("EPaxos.SendProbe to %d\n", target)
+	if int(target) >= len(ep.rpc) {
+		return errors.New("out of range")
+	}
+	if target == ep.self {
+		*ret = fmt.Sprintf("I'm EPaxos #%d, I don't send message to myself", ep.self)
+		return nil
+	}
+	probeId, ch := ep.allocProbe()
+	defer ep.freeProbe(probeId)
+	ep.rpc[target] <- common.ProbeMsg{
+		Replica:      ep.self,
+		Payload:      probeId,
+		RequestReply: true,
+	}
+	switch {
+	case <-ch:
+	}
+	*ret = fmt.Sprintf("I'm EPaxos #%d, I sent message to %d and got reply", ep.self, target)
+	return nil
 }

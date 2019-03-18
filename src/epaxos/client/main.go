@@ -1,10 +1,12 @@
 package main
 
-import "log"
-import "fmt"
-import "time"
-import "errors"
-import "github.com/docopt/docopt-go"
+import (
+	"errors"
+	"fmt"
+	"github.com/docopt/docopt-go"
+	"log"
+	"time"
+)
 
 var VERSION string
 

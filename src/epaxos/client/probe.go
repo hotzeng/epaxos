@@ -1,11 +1,13 @@
 package main
 
-import "net/rpc"
-import "errors"
-import "sync"
-import "log"
-import "fmt"
-import "epaxos/common"
+import (
+	"epaxos/common"
+	"errors"
+	"fmt"
+	"log"
+	"net/rpc"
+	"sync"
+)
 
 func probeAll(verbose bool) error {
 	if verbose {
