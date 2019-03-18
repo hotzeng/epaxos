@@ -15,6 +15,7 @@ func (ep *EPaxos) allocProbe() (int64, chan bool) {
 		}
 	}
 	ch := make(chan bool)
+	log.Printf("ProbeId %d allocated:", probeId)
 	ep.probes[probeId] = ch
 	return probeId, ch
 }
@@ -22,10 +23,12 @@ func (ep *EPaxos) allocProbe() (int64, chan bool) {
 func (ep *EPaxos) freeProbe(probeId int64) {
 	ep.probesL.Lock()
 	defer ep.probesL.Unlock()
+	log.Printf("ProbeId %d freed:", probeId)
 	delete(ep.probes, probeId)
 }
 
 func (ep *EPaxos) recvProbe(m *common.ProbeMsg) {
+	log.Print(m)
 	if m.RequestReply {
 		log.Printf("Received ProbeMsg from %d, will reply\n", m.Replica)
 		ep.rpc[m.Replica] <- common.ProbeMsg{
@@ -37,6 +40,7 @@ func (ep *EPaxos) recvProbe(m *common.ProbeMsg) {
 		log.Printf("Received ProbeMsg from %d\n", m.Replica)
 		ep.probesL.Lock()
 		defer ep.probesL.Unlock()
+		log.Printf("ProbeId %d received:", m.Payload)
 		if ch, ok := ep.probes[m.Payload]; ok {
 			ch <- true
 		}

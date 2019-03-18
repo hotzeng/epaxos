@@ -4,6 +4,7 @@ import "time"
 import "os"
 import "sync"
 import "errors"
+import "math/rand"
 import "fmt"
 import "log"
 import "strconv"
@@ -143,6 +144,7 @@ func main() {
 	logW.Id = common.ReplicaID(rep)
 
 	log.Printf("This is epaxos-server, version %s", VERSION)
+	rand.Seed(time.Now().UTC().UnixNano() + rep)
 	nrep, err := strconv.ParseInt(common.GetEnv("EPAXOS_NREPLICAS", "1"), 10, 64)
 	if err != nil {
 		log.Fatal(err)
