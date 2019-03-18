@@ -7,9 +7,13 @@ type Key int32
 type Value int64
 type Sequence int64
 type ReplicaID int64
-type InstanceID int64
 type EpochID int64
 type BallotID int64
+
+type InstanceID struct {
+    ID int64
+    mu sync.Mutex
+}
 
 const (
 	CmdNoOp CmdType = 0
