@@ -40,6 +40,7 @@ EOF
     container_name: epaxos-server-$I
     restart: always
     environment:
+      EPAXOS_DEBUG: "TRUE"
       EPAXOS_LISTEN: "0.0.0.0:23333"
       EPAXOS_NREPLICAS: "$NREPS"
       EPAXOS_REPLICA_ID: "$I"

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"reflect"
 	"strconv"
 )
 
@@ -25,13 +26,22 @@ func (ep *EPaxos) forkUdp() error {
 	tmp := common.GetEnv("EPAXOS_SERVERS_FMT", "127.0.0.%d:23333")
 	for i, ch := range ep.rpc {
 		if common.ReplicaID(i) != ep.self {
-			go ep.writeUdp(fmt.Sprintf(tmp, int64(i)+bias), ch)
+			id := common.ReplicaID(i)
+			go ep.writeUdp(id, fmt.Sprintf(tmp, int64(i)+bias), ch)
 		}
 	}
 	return ep.readUdp()
 }
 
 func (ep *EPaxos) replyClient(addr *net.UDPAddr, msg interface{}) error {
+	if ep.verbose {
+		t := reflect.TypeOf(msg)
+		if m, ok := msg.(common.ClientMsg); ok {
+			log.Printf("--> 0x%16x  %s:%+v", m.GetSender(), t, msg)
+		} else {
+			log.Printf("--> ???%s  %s:%+v", addr, t, msg)
+		}
+	}
 	buf, err := common.Pack(msg)
 	if err != nil {
 		return err
@@ -43,14 +53,19 @@ func (ep *EPaxos) replyClient(addr *net.UDPAddr, msg interface{}) error {
 	return nil
 }
 
-func (ep *EPaxos) writeUdp(endpoint string, ch chan interface{}) error {
-	log.Printf(">EPaxos.writeUdp on %s\n", endpoint)
+func (ep *EPaxos) writeUdp(id common.ReplicaID, endpoint string, ch chan interface{}) error {
+	log.Printf("EPaxos.writeUdp on %s\n", endpoint)
 	addr, err := net.ResolveUDPAddr("udp", endpoint)
 	if err != nil {
 		return err
 	}
 	for {
-		buf, err := common.Pack(<-ch)
+		msg := <-ch
+		if ep.verbose {
+			t := reflect.TypeOf(msg)
+			log.Printf("--> #%2d  %s:%+v", id, t, msg)
+		}
+		buf, err := common.Pack(msg)
 		if err != nil {
 			log.Println(err)
 			continue
@@ -74,6 +89,16 @@ func (ep *EPaxos) readUdp() error {
 		if err != nil {
 			log.Println(err)
 			continue
+		}
+		if ep.verbose {
+			t := reflect.TypeOf(msg)
+			if m, ok := msg.(common.ServerMsg); ok {
+				log.Printf("<-- #%2d  %s:%+v", m.GetSender(), t, msg)
+			} else if m, ok := msg.(common.ClientMsg); ok {
+				log.Printf("<-- 0x%16x  %s:%+v", m.GetSender(), t, msg)
+			} else {
+				log.Printf("<-- ???%s  %s:%+v", addr, t, msg)
+			}
 		}
 		switch m := msg.(type) {
 		case common.KeepMsg:

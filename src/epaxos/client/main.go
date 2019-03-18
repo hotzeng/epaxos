@@ -107,7 +107,7 @@ options:
 	if err != nil {
 		log.Fatal(err)
 	}
-	configEPaxos.TimeOut = time.Duration(1000 * to) * time.Millisecond
+	configEPaxos.TimeOut = time.Duration(1000*to) * time.Millisecond
 
 	ep := NewEPaxosCluster()
 	err = ep.forkUdp()
