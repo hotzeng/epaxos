@@ -67,6 +67,7 @@ epaxos/common/types.go:
 epaxos/server/leader.go:
 
 - func (ep *EPaxos) RpcRequest(req RequestMsg, res *RequestOKMsg) error
+- func (ep *EPaxos) ProcessPreAcceptOK(req PreAcceptMsgOK) error
 - ...
 
 epaxos/server/auditor.go:
