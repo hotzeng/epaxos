@@ -23,8 +23,7 @@ where K: int32, V: int64
 
 # Protocol
 
-Client -> Server: Golang RPC call: https://golang.org/pkg/net/rpc/
-Server -> Server: Custom UDP datagram
+Custom UDP datagram
 
 # Data File
 
@@ -66,7 +65,10 @@ epaxos/common/types.go:
 
 epaxos/server/leader.go:
 
-- func (ep *EPaxos) RpcRequest(req RequestMsg, res *RequestOKMsg) error
+- func (ep *EPaxos) ProcessRequest(req RequestMsg) (RequestOKMsg, error)
+- func (ep *EPaxos) ProcessRequestAndRead(req RequestAndReadMsg) (RequestAndReadOKMsg, error)
+- func (ep *EPaxos) ProcessPreAcceptOK(req PreAcceptMsgOK) error
+- func (ep *EPaxos) ProcessAcceptOK(req PreAcceptMsgOK) error
 - ...
 
 epaxos/server/auditor.go:
@@ -81,4 +83,4 @@ epaxos/server/persister.go:
 
 epaxos/server/rpc.go:
 
-- func (ep *EPaxos) MakeMulticast(msg interface{}, nrep int64) error
+- func (ep *EPaxos) makeMulticast(msg interface{}, nrep int64) []ReplicaID
