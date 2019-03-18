@@ -58,7 +58,10 @@ type InstanceState struct {
     state           InstState
 }
 
-type LastInstanceID
+type LastInstanceID struct {
+    InstanceID  common.InstanceID
+    mu          sync.Mutex
+}
 
 type EPaxos struct {
 	self     common.ReplicaID
