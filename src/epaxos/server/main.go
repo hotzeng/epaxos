@@ -40,6 +40,8 @@ type EPaxos struct {
 	array    []*InstList
 	data     map[common.Key]common.Value
 	inbound  *chan interface{}
+	probesL  sync.Mutex
+	probes   map[int64]chan bool
 	udp      *net.UDPConn
 	rpc      []chan interface{}
 }
@@ -78,6 +80,7 @@ func NewEPaxos(nrep int64, rep common.ReplicaID, endpoint string, buff int64) *E
 		log.Println(err)
 		return nil
 	}
+	ep.probes = make(map[int64]chan bool)
 	err = ep.recoverFromLog()
 	if err != nil {
 		log.Println(err)
@@ -101,8 +104,17 @@ func (ep *EPaxos) SendProbe(target common.ReplicaID, ret *string) error {
 		*ret = fmt.Sprintf("I'm EPaxos #%d, I don't send message to myself", ep.self)
 		return nil
 	}
-	ep.rpc[target] <- common.ProbeMsg{Replica: ep.self}
-	*ret = fmt.Sprintf("I'm EPaxos #%d, I sent message to %d", ep.self, target)
+	probeId, ch := ep.allocProbe()
+	defer ep.freeProbe(probeId)
+	ep.rpc[target] <- common.ProbeMsg{
+		Replica:      ep.self,
+		Payload:      probeId,
+		RequestReply: true,
+	}
+	switch {
+	case <-ch:
+	}
+	*ret = fmt.Sprintf("I'm EPaxos #%d, I sent message to %d and got reply", ep.self, target)
 	return nil
 }
 

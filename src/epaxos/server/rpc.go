@@ -152,8 +152,12 @@ func (ep *EPaxos) readUdp() error {
 		case 0xff:
 			var m common.ProbeMsg
 			err = struc.Unpack(r, &m)
-			msg = m
-			log.Printf("Received ProbeMsg from %d\n", m.Replica)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			ep.recvProbe(&m)
+			continue
 		default:
 			log.Println("Ill-formed packet number")
 			continue
