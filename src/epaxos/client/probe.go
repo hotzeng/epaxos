@@ -54,7 +54,7 @@ loop1:
 			if ok && m.MId == rnd {
 				break loop1
 			}
-		case <-time.After(5 * time.Second):
+		case <-time.After(configEPaxos.TimeOut):
 			log.Printf("keep msg %d timeout \n", id)
 			return errors.New("probe timeout")
 		}
@@ -96,7 +96,7 @@ loop2:
 					}
 				}
 			}
-		case <-time.After(5 * time.Second):
+		case <-time.After(configEPaxos.TimeOut):
 			log.Printf("probe req msg %d timeout \n", id)
 			return errors.New("probe timeout")
 		}

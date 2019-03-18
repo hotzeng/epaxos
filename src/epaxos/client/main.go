@@ -18,6 +18,7 @@ var configEPaxos struct {
 	ServerBias int64
 	Buffer     int64
 	NReps      int64
+	TimeOut    time.Duration
 }
 
 type EPaxosCluster struct {
@@ -61,10 +62,11 @@ func main() {
 
 	usage := `usage: client [options] <command> [<args>...]
 options:
-    -f <fmt>     server endpoints format string
+	-f <fmt>     server endpoints format string
 	-B <bias>    server format bias
 	-b <buffer>  size of write buffer
 	-n <nreps>   number of servers
+	-t <timeout> seconds to wait before abort [default: 5.0]
 `
 	parser := &docopt.Parser{OptionsFirst: true}
 	args, _ := parser.ParseArgs(usage, nil, "epaxos-client version "+VERSION)
@@ -74,6 +76,7 @@ options:
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	if args["-B"] == nil {
 		configEPaxos.ServerBias = 0
 	} else {
@@ -83,6 +86,7 @@ options:
 		}
 		configEPaxos.ServerBias = int64(bias)
 	}
+
 	if args["-b"] == nil {
 		configEPaxos.Buffer = 1024
 	} else {
@@ -92,11 +96,18 @@ options:
 		}
 		configEPaxos.Buffer = int64(buff)
 	}
+
 	nreps, err := args.Int("-n")
 	if err != nil {
 		log.Fatal(err)
 	}
 	configEPaxos.NReps = int64(nreps)
+
+	to, err := args.Float64("-t")
+	if err != nil {
+		log.Fatal(err)
+	}
+	configEPaxos.TimeOut = time.Duration(1000 * to) * time.Millisecond
 
 	ep := NewEPaxosCluster()
 	err = ep.forkUdp()
@@ -117,12 +128,14 @@ func runCommand(ep *EPaxosCluster, cmd string, args []string) error {
 	argv := append([]string{cmd}, args...)
 	switch cmd {
 	case "probe":
-		return cmdProbe(ep, argv)
+		return ep.cmdProbe(argv)
+	case "put":
+		return ep.cmdPut(argv)
 	}
 	return errors.New("Command not found")
 }
 
-func cmdProbe(ep *EPaxosCluster, argv []string) error {
+func (ep *EPaxosCluster) cmdProbe(argv []string) error {
 	usage := `usage: client probe [-v]
 options:
 	-h, --help
@@ -136,4 +149,38 @@ options:
 	}
 
 	return ep.probeAll(verbose)
+}
+
+func (ep *EPaxosCluster) cmdPut(argv []string) error {
+	usage := `usage: client put [-v] <server> <key> <value>
+options:
+	-h, --help
+	-v, --verbose        be verbose
+`
+	args, _ := docopt.ParseArgs(usage, argv, "epaxos-client version "+VERSION)
+
+	verbose, err := args.Bool("--verbose")
+	if err != nil {
+		return err
+	}
+
+	s, err := args.Int("<server>")
+	if err != nil {
+		return err
+	}
+	server := common.ReplicaID(s)
+
+	k, err := args.Int("<key>")
+	if err != nil {
+		return err
+	}
+	key := common.Key(k)
+
+	v, err := args.Int("<value>")
+	if err != nil {
+		return err
+	}
+	value := common.Value(v)
+
+	return ep.doPut(verbose, server, key, value)
 }
