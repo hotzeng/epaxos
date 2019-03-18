@@ -47,7 +47,10 @@ func Pack(msg interface{}) (*bytes.Buffer, error) {
 		buf.WriteByte(0x92)
 		err = struc.Pack(&buf, &m)
 	case KeepMsg:
-		buf.WriteByte(0xfe)
+		buf.WriteByte(0xf1)
+		err = struc.Pack(&buf, &m)
+	case ProbeReqMsg:
+		buf.WriteByte(0xf2)
 		err = struc.Pack(&buf, &m)
 	case ProbeMsg:
 		buf.WriteByte(0xff)
@@ -116,8 +119,12 @@ func Unpack(buf []byte, n int) (interface{}, error) {
 		var m RequestAndReadOKMsg
 		err := struc.Unpack(r, &m)
 		return m, err
-	case 0xfe:
+	case 0xf1:
 		var m KeepMsg
+		err := struc.Unpack(r, &m)
+		return m, err
+	case 0xf2:
+		var m ProbeReqMsg
 		err := struc.Unpack(r, &m)
 		return m, err
 	case 0xff:

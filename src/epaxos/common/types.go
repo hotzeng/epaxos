@@ -115,6 +115,11 @@ type KeepMsg struct {
 	MId int64
 }
 
+type ProbeReqMsg struct {
+	MId     int64
+	Replica ReplicaID
+}
+
 type ProbeMsg struct {
 	Replica      ReplicaID
 	Payload      int64

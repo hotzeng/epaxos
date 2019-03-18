@@ -23,13 +23,12 @@ func (ep *EPaxos) forkUdp() error {
 		return err
 	}
 	tmp := common.GetEnv("EPAXOS_SERVERS_FMT", "127.0.0.%d:23333")
-	go ep.readUdp()
 	for i, ch := range ep.rpc {
 		if common.ReplicaID(i) != ep.self {
 			go ep.writeUdp(fmt.Sprintf(tmp, int64(i)+bias), ch)
 		}
 	}
-	return nil
+	return ep.readUdp()
 }
 
 func (ep *EPaxos) replyClient(addr *net.UDPAddr, msg interface{}) error {
@@ -79,6 +78,7 @@ func (ep *EPaxos) readUdp() error {
 		switch m := msg.(type) {
 		case common.KeepMsg:
 			go func() {
+				log.Printf("Got KeepMsg %d, will reply", m.MId)
 				err := ep.replyClient(addr, m)
 				if err != nil {
 					log.Println(err)
@@ -105,6 +105,22 @@ func (ep *EPaxos) readUdp() error {
 					err = ep.replyClient(addr, common.RequestAndReadOKMsg{Err: true})
 				} else {
 					err = ep.replyClient(addr, r)
+				}
+				if err != nil {
+					log.Println(err)
+				}
+			}()
+		case common.ProbeReqMsg:
+			go func() {
+				err := ep.sendProbe(m.Replica)
+				if err != nil {
+					log.Println(err)
+					err = ep.replyClient(addr, common.ProbeReqMsg{
+						MId:     m.MId,
+						Replica: common.ReplicaID(-1),
+					})
+				} else {
+					err = ep.replyClient(addr, m)
 				}
 				if err != nil {
 					log.Println(err)

@@ -4,4 +4,4 @@ COPY src/ /go/src
 COPY VERSION .
 RUN make all
 CMD ["/go/bin/server"]
-EXPOSE 23333 23333/udp
+EXPOSE 23333/udp
