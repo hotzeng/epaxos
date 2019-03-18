@@ -4,7 +4,6 @@ import (
 	"epaxos/common"
 	"fmt"
 	"log"
-	"math/rand"
 	"net"
 	"os"
 	"strconv"
@@ -81,8 +80,9 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 		log.Println(err)
 		return nil
 	}
-	log.Printf("ListenUDP on %s\n", endpoint)
+	log.Printf(">ListenUDP on %s\n", endpoint)
 	ep.udp, err = net.ListenUDP("udp", addr)
+	ep.udp.SetWriteBuffer(0)
 	if err != nil {
 		log.Println(err)
 		return nil
@@ -121,7 +121,7 @@ func main() {
 	logW.Id = common.ReplicaID(rep)
 
 	log.Printf("This is epaxos-server, version %s", VERSION)
-	rand.Seed(time.Now().UTC().UnixNano() + rep)
+	common.InitializeRand()
 	nrep, err := strconv.ParseInt(common.GetEnv("EPAXOS_NREPLICAS", "1"), 10, 64)
 	if err != nil {
 		log.Fatal(err)

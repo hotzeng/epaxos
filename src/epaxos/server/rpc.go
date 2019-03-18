@@ -44,7 +44,7 @@ func (ep *EPaxos) replyClient(addr *net.UDPAddr, msg interface{}) error {
 }
 
 func (ep *EPaxos) writeUdp(endpoint string, ch chan interface{}) error {
-	log.Printf("EPaxos.writeUdp on %s\n", endpoint)
+	log.Printf(">EPaxos.writeUdp on %s\n", endpoint)
 	addr, err := net.ResolveUDPAddr("udp", endpoint)
 	if err != nil {
 		return err
@@ -78,7 +78,7 @@ func (ep *EPaxos) readUdp() error {
 		switch m := msg.(type) {
 		case common.KeepMsg:
 			go func() {
-				log.Printf("Got KeepMsg %d, will reply", m.MId)
+				log.Printf(">Got KeepMsg %d, will reply", m.MId)
 				err := ep.replyClient(addr, m)
 				if err != nil {
 					log.Println(err)

@@ -1,11 +1,11 @@
 package main
 
 import (
+	"epaxos/common"
 	"errors"
 	"fmt"
 	"github.com/docopt/docopt-go"
 	"log"
-	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -57,7 +57,7 @@ func main() {
 	logW := new(logWriter)
 	log.SetFlags(log.Lshortfile)
 	log.SetOutput(logW)
-	rand.Seed(time.Now().UTC().UnixNano())
+	common.InitializeRand()
 
 	usage := `usage: client [options] <command> [<args>...]
 options:
@@ -98,25 +98,31 @@ options:
 	}
 	configEPaxos.NReps = int64(nreps)
 
+	ep := NewEPaxosCluster()
+	err = ep.forkUdp()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	cmd := args["<command>"].(string)
 	cmdArgs := args["<args>"].([]string)
 
-	err = runCommand(cmd, cmdArgs)
+	err = runCommand(ep, cmd, cmdArgs)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-func runCommand(cmd string, args []string) error {
+func runCommand(ep *EPaxosCluster, cmd string, args []string) error {
 	argv := append([]string{cmd}, args...)
 	switch cmd {
 	case "probe":
-		return cmdProbe(argv)
+		return cmdProbe(ep, argv)
 	}
 	return errors.New("Command not found")
 }
 
-func cmdProbe(argv []string) error {
+func cmdProbe(ep *EPaxosCluster, argv []string) error {
 	usage := `usage: client probe [-v]
 options:
 	-h, --help
@@ -125,12 +131,6 @@ options:
 	args, _ := docopt.ParseArgs(usage, argv, "epaxos-client version "+VERSION)
 
 	verbose, err := args.Bool("--verbose")
-	if err != nil {
-		return err
-	}
-
-	ep := NewEPaxosCluster()
-	err = ep.forkUdp()
 	if err != nil {
 		return err
 	}
