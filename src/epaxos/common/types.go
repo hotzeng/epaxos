@@ -49,7 +49,7 @@ type RequestMsg struct {
 	Cmd Command
 }
 type RequestOKMsg struct {
-	// Empty
+	ok      bool
 }
 
 type RequestAndReadMsg struct {

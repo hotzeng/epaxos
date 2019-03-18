@@ -16,6 +16,7 @@ import "math"
 type instStateMachine struct {
     self            int
     state           InstState
+    innerChan       chan interface{}
 
     // preAccept phase
     FQuorum         []ReplicaID
@@ -47,35 +48,40 @@ func Make(me int, inbound interface) *EPaxos {
     ep.inbound = inbound
     ep.rpc = // TODO
 
-    go ep.startServer()
-
     return ep
 }
 
-// startServer after making the server
-func (ep *EPaxos) startServer() {
-    var instId common.InstanceID
-    for {
-        msg := <-ep.inbound
-        switch msg.(type) {
-            case RequestMsg:
-                //TODO: write into array
-                // If no free channel, report error
-                if ep.chanHead == ep.chanTail + 1 {
-                    log.Fatal("No free channel for new instance machine")
-                }
-                ep.inst2Chan[++ep.lastInst] = ep.chanTail++
-                go ep.startInstanceState(ep.lastInst)
-
-            case PreAccepOKtMsg:
-                instId = msg.Id.Inst
-                ep.innerChan[instId] <- msg
-
-            case AcceptOKMsg:
-                instId = msg.Id.Inst
-                ep.innerChan[instId] <- msg
-        }
+// func to deal with client request
+func (ep *EPaxos) RpcRequest(req RequestMsg, res *RequestOKMsg) error {
+    if ep.chanHead == ep.chanTail + 1 {
+        log.Fatal("No free channel for new instance machine")
     }
+    ep.lastInst.mu.Lock()
+    localInst := ++ep.lastInst.ID
+    ep.lastInst.mu.Unlock()
+
+    localChan = ep.chanTail++
+    ep.inst2Chan[localInst] = localChan
+
+    go ep.startInstanceState(localInst, req, innerChan[localChan])
+    select {
+    case reply := <-innerChan[localChan]:
+        if reply.(type) != RequestOKMsg || reply.ok != true{
+            break
+        }
+        res->ok = true
+    default:
+    }
+}
+
+func (ep *EPaxos) ProcessPreAcceptOK(req PreAcceptOKMsg) error {
+    instId = req.Id.Inst.ID
+    ep.innerChan[instId] <- msg
+}
+
+func (ep *EPaxos) ProcessAcceptOK(req AcceptOKMsg) error {
+    instId = req.Id.Inst.ID
+    ep.innerChan[instId] <- msg
 }
 
 // help func to check the interference between two commands
@@ -114,18 +120,19 @@ func compareMerge(dep1 *[]InstRef, dep2 []InstRef) bool { // return true if the 
 }
 
 // start Instance state machine after receiving a request from client  
-func (ep *EPaxos) startInstanceState(instId int, cmd Command) {
+func (ep *EPaxos) startInstanceState(instId int, cmd Command, innerChan chan) {
     // ism abbreviated to instance state machine
     ism := &instStateMachine{}
     ism.self = instId
-    ism.state = Idle // starting from idle state, send preaccept to F
+    ism.innerChan = innerChan
+    ism.state = Start // starting from idle state, send preaccept to F
     ism.preAcceptNo = 0
     ism.chooseFast = true
     var innerMsg interface{}
 
     for {
         switch ism.state {
-        case Idle:
+        case Start:
             deps := []InstRef
             seqMax := 0
             for index1, oneReplica := range ep.array {
@@ -160,9 +167,9 @@ func (ep *EPaxos) startInstanceState(instId int, cmd Command) {
             ism.state = PreAccepted
 
 
-        case PreAccepted:
+        case PreAccepted: // waiting for PreAccepOKMsg
             select {
-                case innerMsg = <-ep.innerChan:
+                case innerMsg = <-ism.innerChan:
                     if innerMsg.(type) == PreAccepOKMsg {
                         // check instId is correct
                         if innerMsg.Id.Inst != ism.self {
@@ -207,7 +214,7 @@ func (ep *EPaxos) startInstanceState(instId int, cmd Command) {
 
         case Accepted:
             select {
-            case innerMsg := <-ep.innerChan:
+            case innerMsg := <-ism.innerChan:
                 if innerMsg.(type) != AcceptOKMsg {
                     break
                 }
@@ -224,10 +231,16 @@ func (ep *EPaxos) startInstanceState(instId int, cmd Command) {
             inst.Deps = sim.depOK
             ep.array[ep.self].Pending[instId] = StatefulInst{inst: inst, state:Committed}
             // TODO: send commit notification to client
-            ep.makeMulticast()
+            // send commit msg to replicas
+            sendMsg := &CommitMsg{}
+            sendMsg.Id = InstRef{Replica:ep.self, Inst:instId}
+            sendMsg.Inst = inst
+            ep.makeMulticast(sendMsg, peers-1)
+            sim.state = Idle
+            sim.innerChan<-RequestOKMsg{true}
 
-
-
+        case Idle:
+            // do nothing
         }
     }
 }

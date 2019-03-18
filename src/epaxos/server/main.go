@@ -26,6 +26,7 @@ const (
 	Committed       InstState = 2
 	Prepare         InstState = 3
     Idle            InstState = 5
+    Start           InstState = 6
 )
 
 type ChangeStateMsg struct {
@@ -57,10 +58,11 @@ type InstanceState struct {
     state           InstState
 }
 
+type LastInstanceID
 
 type EPaxos struct {
 	self     common.ReplicaID
-	lastInst common.InstanceID
+	lastInst LastInstanceID
 	array    []*InstList    // one InstList per replica
 	data     map[common.Key]common.Value
     peers    int    // number of peers, including itself
