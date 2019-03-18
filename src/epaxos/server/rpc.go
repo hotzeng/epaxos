@@ -37,7 +37,7 @@ func (ep *EPaxos) replyClient(addr *net.UDPAddr, msg interface{}) error {
 	if ep.verbose {
 		t := reflect.TypeOf(msg)
 		if m, ok := msg.(common.ClientMsg); ok {
-			log.Printf("--> 0x%16x  %s:%+v", m.GetSender(), t, msg)
+			log.Printf("--> 0x%016x  %s:%+v", m.GetSender(), t, msg)
 		} else {
 			log.Printf("--> ???%s  %s:%+v", addr, t, msg)
 		}
@@ -63,7 +63,7 @@ func (ep *EPaxos) writeUdp(id common.ReplicaID, endpoint string, ch chan interfa
 		msg := <-ch
 		if ep.verbose {
 			t := reflect.TypeOf(msg)
-			log.Printf("--> #%2d  %s:%+v", id, t, msg)
+			log.Printf("--> #%02d  %s:%+v", id, t, msg)
 		}
 		buf, err := common.Pack(msg)
 		if err != nil {
@@ -93,9 +93,9 @@ func (ep *EPaxos) readUdp() error {
 		if ep.verbose {
 			t := reflect.TypeOf(msg)
 			if m, ok := msg.(common.ServerMsg); ok {
-				log.Printf("<-- #%2d  %s:%+v", m.GetSender(), t, msg)
+				log.Printf("<-- #%02d  %s:%+v", m.GetSender(), t, msg)
 			} else if m, ok := msg.(common.ClientMsg); ok {
-				log.Printf("<-- 0x%16x  %s:%+v", m.GetSender(), t, msg)
+				log.Printf("<-- 0x%016x  %s:%+v", m.GetSender(), t, msg)
 			} else {
 				log.Printf("<-- ???%s  %s:%+v", addr, t, msg)
 			}
@@ -103,7 +103,7 @@ func (ep *EPaxos) readUdp() error {
 		switch m := msg.(type) {
 		case common.KeepMsg:
 			go func() {
-				log.Printf(">Got KeepMsg %d, will reply", m.MId)
+				log.Printf("Probe: Got KeepMsg %d, will reply", m.MId)
 				err := ep.replyClient(addr, m)
 				if err != nil {
 					log.Println(err)

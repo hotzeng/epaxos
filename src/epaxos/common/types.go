@@ -126,48 +126,57 @@ type ProbeMsg struct {
 	RequestReply bool
 }
 
-
 type ClientMsg interface {
 	GetSender() int64
 }
-func (m *RequestMsg) GetSender() int64 {
-	return m.MId
-}
-func (m *RequestOKMsg) GetSender() int64 {
-	return m.MId
-}
-func (m *RequestAndReadMsg) GetSender() int64 {
-	return m.MId
-}
-func (m *RequestAndReadOKMsg) GetSender() int64 {
-	return m.MId
-}
 
+func (m RequestMsg) GetSender() int64 {
+	return m.MId
+}
+func (m RequestOKMsg) GetSender() int64 {
+	return m.MId
+}
+func (m RequestAndReadMsg) GetSender() int64 {
+	return m.MId
+}
+func (m RequestAndReadOKMsg) GetSender() int64 {
+	return m.MId
+}
+func (m KeepMsg) GetSender() int64 {
+	return m.MId
+}
+func (m ProbeReqMsg) GetSender() int64 {
+	return m.MId
+}
 
 type ServerMsg interface {
 	GetSender() ReplicaID
 }
-func (m *PreAcceptMsg) GetSender() ReplicaID {
+
+func (m PreAcceptMsg) GetSender() ReplicaID {
 	return m.Id.Replica
 }
-func (m *PreAcceptOKMsg) GetSender() ReplicaID {
+func (m PreAcceptOKMsg) GetSender() ReplicaID {
 	return m.Id.Replica
 }
-func (m *AcceptMsg) GetSender() ReplicaID {
+func (m AcceptMsg) GetSender() ReplicaID {
 	return m.Id.Replica
 }
-func (m *AcceptOKMsg) GetSender() ReplicaID {
+func (m AcceptOKMsg) GetSender() ReplicaID {
 	return m.Id.Replica
 }
-func (m *CommitMsg) GetSender() ReplicaID {
+func (m CommitMsg) GetSender() ReplicaID {
 	return m.Id.Replica
 }
-func (m *PrepareMsg) GetSender() ReplicaID {
+func (m PrepareMsg) GetSender() ReplicaID {
 	return m.Id.Replica
 }
-func (m *TryPreAcceptMsg) GetSender() ReplicaID {
+func (m TryPreAcceptMsg) GetSender() ReplicaID {
 	return m.Id.Replica
 }
-func (m *TryPreAcceptOKMsg) GetSender() ReplicaID {
+func (m TryPreAcceptOKMsg) GetSender() ReplicaID {
 	return m.Id.Replica
+}
+func (m ProbeMsg) GetSender() ReplicaID {
+	return m.Replica
 }
