@@ -14,39 +14,42 @@ import "math"
 
 // Struct for instance state machine
 type instStateMachine struct {
-    self            int
+    self            int                 // which instID it is processing
     state           InstState
-    innerChan       chan interface{}
+    innerChan       chan interface{}    // the chan used to communicate with replica
 
     // preAccept phase
-    FQuorum         []ReplicaID
-    preAcceptNo     int // number for received preAccept msg
-    preAcceptBook   map[ReplicaID]bool // record from which preAccept is received
+    FQuorum         []ReplicaID         // the quorun to send preaccept
+    preAcceptNo     int                 // number for received preAccept msg
+    preAcceptBook   map[ReplicaID]bool  // record from which preAccept is received
 
     // preAcceptOK phase
     chooseFast      bool
-    seqOK           Sequence
-    depsOK          []InstRef
+    seqOK           Sequence            // the max seq
+    depsOK          []InstRef           // the union of all deps
 
     // accept phase
-    acceptNo        int
+    acceptNo        int                 // the number of received accept msg
 }
 
 
 // func to make a new server
-func Make(me int, inbound interface) *EPaxos {
+func Make(me int, peers int, inbound interface) *EPaxos {
     ep := &EPaxos{}
     ep.self = me
-    ep.lastInst = common.InstanceID(0)
-    ep.array = //TODO
+    ep.lastInst = LastInstanceID{InstanceID:0}
+    ep.array = make([]*InstList, peers)
     ep.data = make(map[common.Key]common.Value)
+    ep.peers = peers
     ep.inst2Chan = make(map[common.InstanceID]ChannelID)
     ep.chanHead = 0
     ep.chanTail = 0
 
     ep.innerChan = make(chan interface{}, CHAN_MAX)
     ep.inbound = inbound
-    ep.rpc = // TODO
+
+    // TODO: some more initialization
+    ep.rpc =
 
     return ep
 }
@@ -57,31 +60,37 @@ func (ep *EPaxos) RpcRequest(req RequestMsg, res *RequestOKMsg) error {
         log.Fatal("No free channel for new instance machine")
     }
     ep.lastInst.mu.Lock()
-    localInst := ++ep.lastInst.ID
+    localInst := ep.lastInst.InstanceID++
     ep.lastInst.mu.Unlock()
 
     localChan = ep.chanTail++
     ep.inst2Chan[localInst] = localChan
 
     go ep.startInstanceState(localInst, req, innerChan[localChan])
-    select {
-    case reply := <-innerChan[localChan]:
-        if reply.(type) != RequestOKMsg || reply.ok != true{
+
+    for {
+        reply, more := <-innerChan[localChan]
+        if reply.(type) == RequestOKMsg && reply.ok != true{
+            res->ok = true
             break
         }
-        res->ok = true
-    default:
+        else if !more {
+            // TODO: return error
+            return ...
+        }
     }
+    // TODO: how to deal with error return msg?
+    return ...
 }
 
 func (ep *EPaxos) ProcessPreAcceptOK(req PreAcceptOKMsg) error {
-    instId = req.Id.Inst.ID
-    ep.innerChan[instId] <- msg
+    instId := req.Id.Inst
+    ep.innerChan[instId] <- req
 }
 
 func (ep *EPaxos) ProcessAcceptOK(req AcceptOKMsg) error {
-    instId = req.Id.Inst.ID
-    ep.innerChan[instId] <- msg
+    instId := req.Id.Inst
+    ep.innerChan[instId] <- req
 }
 
 // help func to check the interference between two commands
@@ -120,7 +129,7 @@ func compareMerge(dep1 *[]InstRef, dep2 []InstRef) bool { // return true if the 
 }
 
 // start Instance state machine after receiving a request from client  
-func (ep *EPaxos) startInstanceState(instId int, cmd Command, innerChan chan) {
+func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd Command, innerChan chan interface{}) {
     // ism abbreviated to instance state machine
     ism := &instStateMachine{}
     ism.self = instId
@@ -152,6 +161,7 @@ func (ep *EPaxos) startInstanceState(instId int, cmd Command, innerChan chan) {
             inst.mu.Lock()
             inst.Seq = seq
             inst.Deps = deps
+            // TODO: assign NDeps
             ep.array[ep.self].Pending[instId] = StatefulInst{inst: inst, state:PreAccepted}
             inst.mu.Unlock()
             ism.seqOK = seq
@@ -162,17 +172,19 @@ func (ep *EPaxos) startInstanceState(instId int, cmd Command, innerChan chan) {
             sendMsg := &PreAcceptMsg{}
             sendMsg.Inst = inst
             sendMsg.Id = InstRef{ep.self, instId}
-            sim.Fquorum = ep.makeMulticast(sendMsg, F-1)
+            ism.Fquorum = ep.makeMulticast(sendMsg, F-1)
             ism.preAcceptNo = F-1
             ism.state = PreAccepted
 
 
         case PreAccepted: // waiting for PreAccepOKMsg
+            // wait for msg non-blockingly
             select {
                 case innerMsg = <-ism.innerChan:
                     if innerMsg.(type) == PreAccepOKMsg {
                         // check instId is correct
                         if innerMsg.Id.Inst != ism.self {
+                            // TODO: change this fatal command
                             log.Fatal("Wrong inner msg!")
                         }
                         // if the msg has been received from the sender, break
@@ -205,7 +217,7 @@ func (ep *EPaxos) startInstanceState(instId int, cmd Command, innerChan chan) {
                                 sendMsg := &AcceptMsg{}
                                 sendMsg.Id = InstRef{Replica:ep.self, Inst:instId}
                                 sendMsg.Inst = inst
-                                sim.Fquorum = ep.makeMulticast(sendMsg, math.floor(ep.peers / 2)) // TODO: change the number of Multicast
+                                ism.Fquorum = ep.makeMulticast(sendMsg, math.floor(ep.peers / 2)) // TODO: change the number of Multicast for faster response
                             }
                         }
                     }
@@ -230,17 +242,15 @@ func (ep *EPaxos) startInstanceState(instId int, cmd Command, innerChan chan) {
             inst.Seq = sim.seqOK
             inst.Deps = sim.depOK
             ep.array[ep.self].Pending[instId] = StatefulInst{inst: inst, state:Committed}
-            // TODO: send commit notification to client
             // send commit msg to replicas
             sendMsg := &CommitMsg{}
             sendMsg.Id = InstRef{Replica:ep.self, Inst:instId}
             sendMsg.Inst = inst
             ep.makeMulticast(sendMsg, peers-1)
             sim.state = Idle
+            close(innerChan)
             sim.innerChan<-RequestOKMsg{true}
-
-        case Idle:
-            // do nothing
+            return
         }
     }
 }
