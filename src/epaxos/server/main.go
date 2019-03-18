@@ -47,8 +47,13 @@ type EPaxos struct {
 	rpc      []chan interface{}
 }
 
-func NewEPaxos(nrep int64, rep common.ReplicaID, buff int64) *EPaxos {
+func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 	dir := common.GetEnv("EPAXOS_DATA_PREFIX", "./data/data-")
+	buff, err := strconv.ParseInt(common.GetEnv("EPAXOS_BUFFER", "1024"), 10, 64)
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
 	ep := new(EPaxos)
 	ep.self = rep
 	ep.array = make([]*InstList, nrep)
@@ -121,12 +126,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	buff, err := strconv.ParseInt(common.GetEnv("EPAXOS_BUFFER", "1024"), 10, 64)
-	if err != nil {
-		log.Fatal(err)
-	}
 
-	ep := NewEPaxos(nrep, common.ReplicaID(rep), buff)
+	ep := NewEPaxos(nrep, common.ReplicaID(rep))
 	if ep == nil {
 		log.Fatal("EPaxos creation failed")
 	}

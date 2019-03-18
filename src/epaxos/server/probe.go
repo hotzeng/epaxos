@@ -58,13 +58,14 @@ func (ep *EPaxos) sendProbe(target common.ReplicaID) error {
 		return nil
 	}
 	probeId, ch := ep.allocProbe()
+	log.Print("The fuck?")
 	defer ep.freeProbe(probeId)
 	ep.rpc[target] <- common.ProbeMsg{
 		Replica:      ep.self,
 		Payload:      probeId,
 		RequestReply: true,
 	}
-	switch {
+	select {
 	case <-ch:
 	}
 	log.Printf("EPaxos.sendProbe to %d succeed\n", target)
