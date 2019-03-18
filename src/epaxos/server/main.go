@@ -44,6 +44,11 @@ type StatefulInst struct {
 	state InstState
 }
 
+type chanPointer struct {
+	pointer ChannelID
+	mu      sync.Mutex
+}
+
 type InstList struct {
 	Mu      sync.Mutex
 	LogFile *os.File
@@ -72,7 +77,6 @@ type EPaxos struct {
 	lastInst LastInstanceID
 	array    []*InstList // one InstList per replica
 	data     map[common.Key]common.Value
-	inbound  *chan interface{}
 	probesL  sync.Mutex
 	probes   map[int64]chan bool
 	udp      *net.UDPConn
@@ -81,11 +85,11 @@ type EPaxos struct {
 
 	// records which channel is allocated for each instance
 	inst2Chan map[common.InstanceID]ChannelID
-	chanHead  int
-	chanTail  int
+	chanHead  chanPointer
+	chanTail  chanPointer
 
 	// channels for Instance state machines
-	innerChan [CHAN_MAX]chan interface{}
+	innerChan []chan interface{}
 
 	// channels to other servers/replicas
 	inbound chan interface{}

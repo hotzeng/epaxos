@@ -27,7 +27,7 @@ type Instance struct {
 	Seq   Sequence
 	NDeps int64 `struc:"sizeof=Deps"`
 	Deps  []InstRef
-	mu    sync.Mutex
+	Mu    sync.Mutex
 }
 
 type InstRef struct {
@@ -45,7 +45,7 @@ type RequestMsg struct {
 	Cmd Command
 }
 type RequestOKMsg struct {
-	ok bool
+	Ok bool
 }
 
 type RequestAndReadMsg struct {
@@ -66,7 +66,7 @@ type PreAcceptOKMsg struct {
 	Seq    Sequence
 	NDeps  int64 `struc:"sizeof=Deps"`
 	Deps   []InstRef
-	sender ReplicaID
+	Sender ReplicaID
 }
 
 type AcceptMsg struct {
@@ -76,7 +76,7 @@ type AcceptMsg struct {
 type AcceptOKMsg struct {
 	Id     InstRef
 	Inst   Instance
-	sender ReplicaID
+	Sender ReplicaID
 }
 
 type CommitMsg struct {
