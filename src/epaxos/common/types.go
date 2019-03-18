@@ -1,5 +1,7 @@
 package common
 
+import "sync"
+
 type CmdType int32
 type Key int32
 type Value int64
@@ -25,6 +27,7 @@ type Instance struct {
 	Seq   Sequence
 	NDeps int64 `struc:"sizeof=Deps"`
 	Deps  []InstRef
+    mu    sync.Mutex
 }
 
 type InstRef struct {

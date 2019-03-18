@@ -12,6 +12,7 @@ import "math"
 // state machines. However, the state machines will send messages
 // to other replicas directly, without going through the EPaxos
 
+// Struct for instance state machine
 type instStateMachine struct {
     self            int
     state           InstState
@@ -48,6 +49,7 @@ func Make(me int, inbound interface) *EPaxos {
     return ep
 }
 
+// startServer after making the server
 func (ep *EPaxos) startServer() {
     var instId common.InstanceID
     for {
@@ -73,6 +75,7 @@ func (ep *EPaxos) startServer() {
     }
 }
 
+// help func to check the interference between two commands
 func interfCmd(cmd1 Command, cmd2 Command) bool {
     return cmd1.Key == cmd2.Key
            && ( (cmd1.CmdType == CmdPut && cmd2.CmdType == CmdNoOp)
@@ -81,6 +84,7 @@ func interfCmd(cmd1 Command, cmd2 Command) bool {
            && cmd1.Value != cmd2.Value) )
 }
 
+// help func to compare and merge two dep sets
 // TODO: make a more fast implementation
 func compareMerge(dep1 *[]InstRef, dep2 []InstRef) bool { // return true if the same
     ret := true
@@ -106,6 +110,7 @@ func compareMerge(dep1 *[]InstRef, dep2 []InstRef) bool { // return true if the 
     return ret
 }
 
+// start Instance state machine after receiving a request from client  
 func (ep *EPaxos) startInstanceState(instId int, cmd Command) {
     // ism abbreviated to instance state machine
     ism := &instStateMachine{}
@@ -133,11 +138,14 @@ func (ep *EPaxos) startInstanceState(instId int, cmd Command) {
             seq := seqMax + 1
             inst := &Instance{}
             inst.Cmd = cmd
+            // modify and save instance atomically
+            inst.mu.Lock()
             inst.Seq = seq
             inst.Deps = deps
+            ep.array[ep.self].Pending[instId] = StatefulInst{inst: inst, state:PreAccepted}
+            inst.mu.Unlock()
             ism.seqOK = seq
             ism.depOK = deps
-            ep.array[ep.self].Pending[instId] = StatefulInst{inst: inst, state:PreAccepted}
 
             // send PreAccept to all other replicas in F
             F := math.floor(ep.peers / 2)
@@ -177,6 +185,13 @@ func (ep *EPaxos) startInstanceState(instId int, cmd Command) {
                             }
                             else {
                                 ism.state = Accepted
+
+                                inst := &Instance{}
+                                inst.Cmd = cmd
+                                inst.Seq = seqOK
+                                inst.Deps = depOK
+                                ep.array[ep.self].Pending[instId] = StatefulInst{inst: inst, state:Accepted}
+                                sim.Fquorum = Fep.makeMulticast(sendMsg, math.floor(ep.peers / 2)) // TODO: change the number of Multicast
                             }
                         }
                     }
@@ -184,11 +199,6 @@ func (ep *EPaxos) startInstanceState(instId int, cmd Command) {
             }
 
         case Accepted:
-            inst := &Instance{}
-            inst.Cmd = cmd
-            inst.Seq = seqOK
-            inst.Deps = depOK
-            ep.array[ep.self].Pending[instId] = StatefulInst{inst: inst, state:Accepted}
             
 
         case LeaderCommit:
