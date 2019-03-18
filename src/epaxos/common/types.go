@@ -81,10 +81,7 @@ type AcceptOKMsg struct {
 
 type CommitMsg struct {
 	Id    InstRef
-	Cmd   Command
-	Seq   Sequence
-	NDeps int64 `struc:"sizeof=Deps"`
-	Deps  []InstRef
+	Inst Instance
 }
 
 type PrepareMsg struct {

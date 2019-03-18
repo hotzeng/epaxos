@@ -26,6 +26,9 @@ type instStateMachine struct {
     chooseFast      bool
     seqOK           Sequence
     depsOK          []InstRef
+
+    // accept phase
+    acceptNo        int
 }
 
 
@@ -152,7 +155,7 @@ func (ep *EPaxos) startInstanceState(instId int, cmd Command) {
             sendMsg := &PreAcceptMsg{}
             sendMsg.Inst = inst
             sendMsg.Id = InstRef{ep.self, instId}
-            sim.Fquorum = Fep.makeMulticast(sendMsg, F-1)
+            sim.Fquorum = ep.makeMulticast(sendMsg, F-1)
             ism.preAcceptNo = F-1
             ism.state = PreAccepted
 
@@ -185,13 +188,17 @@ func (ep *EPaxos) startInstanceState(instId int, cmd Command) {
                             }
                             else {
                                 ism.state = Accepted
-
+                                inst.acceptNo = math.floor(ep.peers / 2)
                                 inst := &Instance{}
                                 inst.Cmd = cmd
                                 inst.Seq = seqOK
                                 inst.Deps = depOK
                                 ep.array[ep.self].Pending[instId] = StatefulInst{inst: inst, state:Accepted}
-                                sim.Fquorum = Fep.makeMulticast(sendMsg, math.floor(ep.peers / 2)) // TODO: change the number of Multicast
+                                // send accepted msg to replicas
+                                sendMsg := &AcceptMsg{}
+                                sendMsg.Id = InstRef{Replica:ep.self, Inst:instId}
+                                sendMsg.Inst = inst
+                                sim.Fquorum = ep.makeMulticast(sendMsg, math.floor(ep.peers / 2)) // TODO: change the number of Multicast
                             }
                         }
                     }
@@ -199,9 +206,26 @@ func (ep *EPaxos) startInstanceState(instId int, cmd Command) {
             }
 
         case Accepted:
-            
+            select {
+            case innerMsg := <-ep.innerChan:
+                if innerMsg.(type) != AcceptOKMsg {
+                    break
+                }
+                if --sim.acceptNo == 0 {
+                    sim.state = Committed
+                }
+            }
+            default:
 
-        case LeaderCommit:
+        case Committed:
+            inst := &Instance{}
+            inst.Cmd = cmd
+            inst.Seq = sim.seqOK
+            inst.Deps = sim.depOK
+            ep.array[ep.self].Pending[instId] = StatefulInst{inst: inst, state:Committed}
+            // TODO: send commit notification to client
+            ep.makeMulticast()
+
 
 
         }
