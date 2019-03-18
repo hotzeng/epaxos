@@ -3,7 +3,6 @@ package main
 import (
 	"epaxos/common"
 	"errors"
-	"fmt"
 	"log"
 	"math/rand"
 )
@@ -32,7 +31,6 @@ func (ep *EPaxos) freeProbe(probeId int64) {
 }
 
 func (ep *EPaxos) recvProbe(m *common.ProbeMsg) {
-	log.Print(m)
 	if m.RequestReply {
 		log.Printf("Received ProbeMsg from %d, will reply\n", m.Replica)
 		ep.rpc[m.Replica] <- common.ProbeMsg{
@@ -51,31 +49,25 @@ func (ep *EPaxos) recvProbe(m *common.ProbeMsg) {
 	}
 }
 
-func (ep *EPaxos) ReadyProbe(payload string, ret *string) error {
-	log.Printf("EPaxos.ReadyProbe with %s\n", payload)
-	*ret = fmt.Sprintf("I'm EPaxos #%d, I'm alive", ep.self)
-	return nil
-}
-
-func (ep *EPaxos) SendProbe(target common.ReplicaID, ret *string) error {
-	log.Printf("EPaxos.SendProbe to %d\n", target)
+func (ep *EPaxos) sendProbe(target common.ReplicaID) error {
+	log.Printf("EPaxos.sendProbe to %d start\n", target)
 	if int(target) >= len(ep.rpc) {
 		return errors.New("out of range")
 	}
 	if target == ep.self {
-		*ret = fmt.Sprintf("I'm EPaxos #%d, I don't send message to myself", ep.self)
 		return nil
 	}
 	probeId, ch := ep.allocProbe()
+	log.Print("The fuck?")
 	defer ep.freeProbe(probeId)
 	ep.rpc[target] <- common.ProbeMsg{
 		Replica:      ep.self,
 		Payload:      probeId,
 		RequestReply: true,
 	}
-	switch {
+	select {
 	case <-ch:
 	}
-	*ret = fmt.Sprintf("I'm EPaxos #%d, I sent message to %d and got reply", ep.self, target)
+	log.Printf("EPaxos.sendProbe to %d succeed\n", target)
 	return nil
 }

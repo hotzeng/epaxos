@@ -2,25 +2,23 @@ package main
 
 import (
 	"epaxos/common"
-	"errors"
-	"fmt"
 	"log"
-	"net/rpc"
+	"math/rand"
 	"sync"
 )
 
-func probeAll(verbose bool) error {
+func (ep *EPaxosCluster) probeAll(verbose bool) error {
 	if verbose {
-		log.Printf("Start probeAll for %d", configEPaxos.NReps)
+		log.Printf("Start probeAll for %d", len(ep.rpc))
 	}
 	var wg sync.WaitGroup
-	wg.Add(int(configEPaxos.NReps))
+	wg.Add(len(ep.rpc))
 	good := true
 	for i := int64(0); i < configEPaxos.NReps; i++ {
 		id := common.ReplicaID(i)
 		go func() {
 			defer wg.Done()
-			err := probeOne(verbose, id)
+			err := ep.probeOne(verbose, id)
 			if err != nil {
 				log.Println(err)
 				good = false
@@ -34,58 +32,54 @@ func probeAll(verbose bool) error {
 	return nil
 }
 
-func probeOne(verbose bool, id common.ReplicaID) error {
-	endpoint := fmt.Sprintf(configEPaxos.ServerFmt, id)
+func (ep *EPaxosCluster) probeOne(verbose bool, id common.ReplicaID) error {
 	if verbose {
-		log.Printf("Start probeOne %s", endpoint)
+		log.Printf("Start probeOne %d", id)
 	}
 
-	client, err := rpc.Dial("tcp", endpoint)
-	if err != nil {
-		return err
+	rnd := rand.Int63()
+	ep.rpc[id] <- common.KeepMsg{MId: rnd}
+
+	for {
+		msg := <-ep.inbound[id]
+		m, ok := msg.(common.KeepMsg)
+		if ok && m.MId == rnd {
+			break
+		}
 	}
 
-	var reply string
-	err = client.Call("EPaxos.ReadyProbe", "hello", &reply)
-	if err != nil {
-		return err
-	}
-	if verbose {
-		log.Println(reply)
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(int(configEPaxos.NReps))
-	good := true
+	msgs := make(map[int64]bool)
 	for i := int64(0); i < configEPaxos.NReps; i++ {
 		id2 := common.ReplicaID(i)
-		go func() {
-			defer wg.Done()
-			err := probeOneOne(verbose, client, id, id2)
-			if err != nil {
-				log.Println(err)
-				good = false
+		if id == id2 {
+			continue
+		}
+		for {
+			rnd = rand.Int63()
+			if _, ok := msgs[rnd]; !ok {
+				msgs[rnd] = true
+				break
 			}
-		}()
+		}
+		ep.rpc[id] <- common.ProbeReqMsg{
+			MId:     rnd,
+			Replica: id2,
+		}
 	}
-	if !good {
-		return errors.New("Various error happend")
+	for {
+		msg := <-ep.inbound[id]
+		m, ok := msg.(common.ProbeReqMsg)
+		if ok {
+			if _, ok := msgs[m.MId]; ok {
+				delete(msgs, m.MId)
+				if len(msgs) == 0 {
+					break
+				}
+			}
+		}
 	}
-	wg.Wait()
 	if verbose {
-		log.Printf("Done probeOne %s", endpoint)
-	}
-	return nil
-}
-
-func probeOneOne(verbose bool, client *rpc.Client, id1, id2 common.ReplicaID) error {
-	var reply string
-	err := client.Call("EPaxos.SendProbe", id2, &reply)
-	if err != nil {
-		return err
-	}
-	if verbose {
-		log.Println(reply)
+		log.Printf("Done probeOne %d", id)
 	}
 	return nil
 }

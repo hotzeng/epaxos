@@ -1,9 +1,11 @@
 package main
 
-import "errors"
-import "log"
-import "epaxos/common"
-import "math"
+import (
+	"epaxos/common"
+	"errors"
+	"log"
+	"math"
+)
 
 // EPaxos only distributes msgs from client and to Instance
 // state machines. However, the state machines will send messages
@@ -253,4 +255,14 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 			return
 		}
 	}
+}
+
+func (ep *EPaxos) ProcessRequest(req common.RequestMsg) (common.RequestOKMsg, error) {
+	// TODO
+	return common.RequestOKMsg{}, nil
+}
+
+func (ep *EPaxos) ProcessRequestAndRead(req common.RequestAndReadMsg) (common.RequestAndReadOKMsg, error) {
+	// TODO
+	return common.RequestAndReadOKMsg{}, nil
 }

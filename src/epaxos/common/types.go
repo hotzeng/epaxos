@@ -42,16 +42,21 @@ type BallotNumber struct {
 }
 
 type RequestMsg struct {
+	MId int64
 	Cmd Command
 }
 type RequestOKMsg struct {
-	Ok bool
+	MId int64
+	Err bool
 }
 
 type RequestAndReadMsg struct {
+	MId int64
 	Cmd Command
 }
 type RequestAndReadOKMsg struct {
+	MId   int64
+	Err   bool
 	Exist bool
 	Value Value
 }
@@ -106,6 +111,15 @@ type TryPreAcceptOKMsg struct {
 	Seq   Sequence
 	NDeps int64 `struc:"sizeof=Deps"`
 	Deps  []InstRef
+}
+
+type KeepMsg struct {
+	MId int64
+}
+
+type ProbeReqMsg struct {
+	MId     int64
+	Replica ReplicaID
 }
 
 type ProbeMsg struct {
