@@ -1,53 +1,83 @@
 package main
 
-import "os"
-import "bufio"
-import "net/rpc"
 import "log"
-import "strings"
-import "strconv"
-import "epaxos/common"
+import "fmt"
+import "time"
+import "errors"
+import "github.com/docopt/docopt-go"
 
 var VERSION string
 
-func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	log.Printf("This is epaxos-client, version %s", VERSION)
-	endpoint := common.GetEnv("EPAXOS_SERVER", "localhost:23333")
+var configEPaxos struct {
+	ServerFmt string
+	NReps     int64
+}
 
-	client, err := rpc.Dial("tcp", endpoint)
+type logWriter struct {
+}
+
+func (*logWriter) Write(bytes []byte) (int, error) {
+	return fmt.Printf(
+		"%s %s",
+		time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+		string(bytes),
+	)
+}
+
+func main() {
+	logW := new(logWriter)
+	log.SetFlags(log.Lshortfile)
+	log.SetOutput(logW)
+
+	usage := `usage: client [options] <command> [<args>...]
+options:
+    -f <fmt>     server endpoints format string
+	-n <nreps>   number of servers
+`
+	parser := &docopt.Parser{OptionsFirst: true}
+	args, _ := parser.ParseArgs(usage, nil, "epaxos-client version "+VERSION)
+
+	var err error
+	configEPaxos.ServerFmt, err = args.String("-f")
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	in := bufio.NewReader(os.Stdin)
-	for {
-		line, err := in.ReadString('\n')
-		if err != nil {
-			log.Fatal(err)
-		}
-		line = line[0 : len(line)-1]
-		var reply string
-		if line == "ready" {
-			err = client.Call("EPaxos.ReadyProbe", "hello", &reply)
-			if err != nil {
-				log.Println(err)
-			}
-			log.Println(reply)
-		} else if strings.HasPrefix(line, "send ") {
-			id, err := strconv.ParseInt(line[5:], 10, 64)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-			err = client.Call("EPaxos.SendProbe", id, &reply)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-			log.Println(reply)
-		} else {
-			log.Println("ready or send #")
-		}
+	nreps, err := args.Int("-n")
+	if err != nil {
+		log.Fatal(err)
 	}
+	configEPaxos.NReps = int64(nreps)
+
+	cmd := args["<command>"].(string)
+	cmdArgs := args["<args>"].([]string)
+
+	err = runCommand(cmd, cmdArgs)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func runCommand(cmd string, args []string) error {
+	argv := append([]string{cmd}, args...)
+	switch cmd {
+	case "probe":
+		return cmdProbe(argv)
+	}
+	return errors.New("Command not found")
+}
+
+func cmdProbe(argv []string) error {
+	usage := `usage: client probe [-v]
+options:
+	-h, --help
+	-v, --verbose        be verbose
+`
+	args, _ := docopt.ParseArgs(usage, argv, "epaxos-client version "+VERSION)
+
+	verbose, err := args.Bool("--verbose")
+	if err != nil {
+		return err
+	}
+
+	return probeAll(verbose)
 }
