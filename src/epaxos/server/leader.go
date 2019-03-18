@@ -31,27 +31,6 @@ type instStateMachine struct {
 	acceptNo int // the number of received accept msg
 }
 
-// func to make a new server
-func Make(me common.ReplicaID, peers int, inbound chan interface{}) *EPaxos {
-	ep := &EPaxos{}
-	ep.self = me
-	ep.lastInst = LastInstanceID{InstanceID: common.InstanceID(0)}
-	ep.array = make([]*InstList, peers)
-	ep.data = make(map[common.Key]common.Value)
-	ep.peers = peers
-	ep.inst2Chan = make(map[common.InstanceID]ChannelID)
-	ep.chanHead = chanPointer{pointer: 0}
-	ep.chanTail = chanPointer{pointer: 0}
-
-	ep.innerChan = make([]chan interface{}, CHAN_MAX)
-	ep.inbound = inbound
-
-	// TODO: some more initialization
-	//ep.rpc =
-
-	return ep
-}
-
 // func to deal with client request
 func (ep *EPaxos) RpcRequest(req common.RequestMsg, res *common.RequestOKMsg) error {
 	if ep.chanHead.pointer == ep.chanTail.pointer+1 {
@@ -73,8 +52,7 @@ func (ep *EPaxos) RpcRequest(req common.RequestMsg, res *common.RequestOKMsg) er
 
 	for {
 		reply, more := <-ep.innerChan[localChan]
-		if r, ok := reply.(common.RequestOKMsg); ok && r.Ok == true {
-			res.Ok = true
+		if r, ok := reply.(common.RequestOKMsg); ok && r.Err == false {
 			// TODO: release the channel
 			break
 		} else if !more {
@@ -248,18 +226,20 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 			sendMsg := &common.CommitMsg{}
 			sendMsg.Id = common.InstRef{Replica: ep.self, Inst: instId}
 			sendMsg.Inst = *inst
-			ep.makeMulticast(sendMsg, int64(ep.peers-1))
+			ep.makeMulticast(sendMsg, ep.peers-1)
 			ism.state = Idle
 			close(innerChan)
-			ism.innerChan <- common.RequestOKMsg{Ok: true}
+			ism.innerChan <- common.RequestOKMsg{Err: false}
 			return
 		}
 	}
 }
 
 func (ep *EPaxos) ProcessRequest(req common.RequestMsg) (common.RequestOKMsg, error) {
-	// TODO
-	return common.RequestOKMsg{}, nil
+	var res common.RequestOKMsg
+	res.MId = req.MId
+	err := ep.RpcRequest(req, &res)
+	return res, err
 }
 
 func (ep *EPaxos) ProcessRequestAndRead(req common.RequestAndReadMsg) (common.RequestAndReadOKMsg, error) {
