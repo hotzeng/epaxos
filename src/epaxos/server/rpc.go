@@ -1,12 +1,14 @@
 package main
 
-import "fmt"
-import "log"
-import "bytes"
-import "strconv"
-import "net"
-import "github.com/lunixbochs/struc"
-import "epaxos/common"
+import (
+	"bytes"
+	"epaxos/common"
+	"fmt"
+	"github.com/lunixbochs/struc"
+	"log"
+	"net"
+	"strconv"
+)
 
 func (ep *EPaxos) makeMulticast(msg interface{}, nrep int64) []common.ReplicaID {
 	var res []common.ReplicaID
@@ -38,8 +40,8 @@ func (ep *EPaxos) writeUdp(endpoint string, ch chan interface{}) error {
 	if err != nil {
 		return err
 	}
-	var buf bytes.Buffer
 	for {
+		var buf bytes.Buffer
 		var err error
 		msg := <-ch
 		switch msg.(type) {
@@ -100,7 +102,7 @@ func (ep *EPaxos) writeUdp(endpoint string, ch chan interface{}) error {
 }
 
 func (ep *EPaxos) readUdp() error {
-	buf := make([]byte, 65535)
+	buf := make([]byte, 65536)
 	for {
 		n, _, err := ep.udp.ReadFromUDP(buf)
 		if err != nil {
@@ -110,6 +112,8 @@ func (ep *EPaxos) readUdp() error {
 			log.Println("Ill-formed packet")
 			continue
 		}
+		log.Print("Got raw message:")
+		log.Print(buf[0:n])
 		r := bytes.NewReader(buf[1:n])
 		var msg interface{}
 		switch buf[0] {
@@ -152,8 +156,12 @@ func (ep *EPaxos) readUdp() error {
 		case 0xff:
 			var m common.ProbeMsg
 			err = struc.Unpack(r, &m)
-			msg = m
-			log.Printf("Received ProbeMsg from %d\n", m.Replica)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			ep.recvProbe(&m)
+			continue
 		default:
 			log.Println("Ill-formed packet number")
 			continue

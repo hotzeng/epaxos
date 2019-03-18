@@ -2,8 +2,7 @@
 *.swo
 *.swn
 *~
-data-*
-
+/data
 /bin
 /pkg
 /VERSION

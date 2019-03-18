@@ -109,5 +109,7 @@ type TryPreAcceptOKMsg struct {
 }
 
 type ProbeMsg struct {
-	Replica ReplicaID
+	Replica      ReplicaID
+	Payload      int64
+	RequestReply bool
 }

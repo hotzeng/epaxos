@@ -1,15 +1,17 @@
 package main
 
-import "time"
-import "os"
-import "sync"
-import "errors"
-import "fmt"
-import "log"
-import "strconv"
-import "net"
-import "net/rpc"
-import "epaxos/common"
+import (
+	"epaxos/common"
+	"fmt"
+	"log"
+	"math/rand"
+	"net"
+	"net/rpc"
+	"os"
+	"strconv"
+	"sync"
+	"time"
+)
 
 var VERSION string
 
@@ -66,6 +68,8 @@ type EPaxos struct {
 	array    []*InstList // one InstList per replica
 	data     map[common.Key]common.Value
 	inbound  *chan interface{}
+	probesL  sync.Mutex
+	probes   map[int64]chan bool
 	udp      *net.UDPConn
 	rpc      []chan interface{}
 	peers    int // number of peers, including itself
@@ -116,32 +120,13 @@ func NewEPaxos(nrep int64, rep common.ReplicaID, endpoint string, buff int64) *E
 		log.Println(err)
 		return nil
 	}
+	ep.probes = make(map[int64]chan bool)
 	err = ep.recoverFromLog()
 	if err != nil {
 		log.Println(err)
 		return nil
 	}
 	return ep
-}
-
-func (ep *EPaxos) ReadyProbe(payload string, ret *string) error {
-	log.Printf("EPaxos.ReadyProbe with %s\n", payload)
-	*ret = fmt.Sprintf("I'm EPaxos #%d, I'm alive", ep.self)
-	return nil
-}
-
-func (ep *EPaxos) SendProbe(target common.ReplicaID, ret *string) error {
-	log.Printf("EPaxos.SendProbe to %d\n", target)
-	if int(target) >= len(ep.rpc) {
-		return errors.New("out of range")
-	}
-	if target == ep.self {
-		*ret = fmt.Sprintf("I'm EPaxos #%d, I don't send message to myself", ep.self)
-		return nil
-	}
-	ep.rpc[target] <- common.ProbeMsg{Replica: ep.self}
-	*ret = fmt.Sprintf("I'm EPaxos #%d, I sent message to %d", ep.self, target)
-	return nil
 }
 
 type logWriter struct {
@@ -169,6 +154,7 @@ func main() {
 	logW.Id = common.ReplicaID(rep)
 
 	log.Printf("This is epaxos-server, version %s", VERSION)
+	rand.Seed(time.Now().UTC().UnixNano() + rep)
 	nrep, err := strconv.ParseInt(common.GetEnv("EPAXOS_NREPLICAS", "1"), 10, 64)
 	if err != nil {
 		log.Fatal(err)

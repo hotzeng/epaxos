@@ -43,7 +43,7 @@ EOF
       EPAXOS_SERVERS_FMT: "epaxos-server-%d:23333"
       EPAXOS_DATA_PREFIX: "/data/epaxos/data-"
     ports:
-      - "$((23333+$I)):23333"
+      - "$((23330+$I)):23333"
     volumes:
       - ./data/data-$I:/data/epaxos
     networks:
