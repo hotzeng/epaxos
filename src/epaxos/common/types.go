@@ -1,13 +1,19 @@
 package common
 
+import "sync"
+
 type CmdType int32
 type Key int32
 type Value int64
 type Sequence int64
 type ReplicaID int64
-type InstanceID int64
 type EpochID int64
 type BallotID int64
+
+type InstanceID struct {
+	ID int64
+	mu sync.Mutex
+}
 
 const (
 	CmdNoOp CmdType = 0
@@ -25,6 +31,7 @@ type Instance struct {
 	Seq   Sequence
 	NDeps int64 `struc:"sizeof=Deps"`
 	Deps  []InstRef
+	mu    sync.Mutex
 }
 
 type InstRef struct {
@@ -42,7 +49,7 @@ type RequestMsg struct {
 	Cmd Command
 }
 type RequestOKMsg struct {
-	// Empty
+	ok bool
 }
 
 type RequestAndReadMsg struct {
@@ -77,11 +84,8 @@ type AcceptOKMsg struct {
 }
 
 type CommitMsg struct {
-	Id    InstRef
-	Cmd   Command
-	Seq   Sequence
-	NDeps int64 `struc:"sizeof=Deps"`
-	Deps  []InstRef
+	Id   InstRef
+	Inst Instance
 }
 
 type PrepareMsg struct {

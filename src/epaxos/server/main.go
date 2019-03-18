@@ -32,6 +32,7 @@ const (
 	Committed     InstState = 2
 	Prepare       InstState = 3
 	Idle          InstState = 5
+	Start         InstState = 6
 )
 
 type ChangeStateMsg struct {
@@ -61,10 +62,14 @@ type InstanceState struct {
 
 	state InstState
 }
+type LastInstanceID struct {
+	InstanceID common.InstanceID
+	mu         sync.Mutex
+}
 
 type EPaxos struct {
 	self     common.ReplicaID
-	lastInst common.InstanceID
+	lastInst LastInstanceID
 	array    []*InstList // one InstList per replica
 	data     map[common.Key]common.Value
 	inbound  *chan interface{}
