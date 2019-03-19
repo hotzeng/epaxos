@@ -4,6 +4,7 @@ import "errors"
 import "log"
 import "epaxos/common"
 import "math"
+import "time"
 
 // EPaxos only distributes msgs from client and to Instance
 // state machines. However, the state machines will send messages
@@ -33,13 +34,12 @@ type instStateMachine struct {
 func Make(me common.ReplicaID, peers int, inbound chan interface{}) *EPaxos {
 	ep := &EPaxos{}
 	ep.self = me
-	ep.lastInst = LastInstanceID{InstanceID: common.InstanceID(0)}
+	ep.lastInst = common.InstanceID(0)
 	ep.array = make([]*InstList, peers)
 	ep.data = make(map[common.Key]common.Value)
 	ep.peers = peers
 	ep.inst2Chan = make(map[common.InstanceID]ChannelID)
-	ep.chanHead = chanPointer{pointer: 0}
-	ep.chanTail = chanPointer{pointer: 0}
+	ep.freeChan = make(map[ChannelID]bool)
 
 	ep.innerChan = make([]chan interface{}, CHAN_MAX)
 	ep.inbound = inbound
@@ -52,20 +52,26 @@ func Make(me common.ReplicaID, peers int, inbound chan interface{}) *EPaxos {
 
 // func to deal with client request
 func (ep *EPaxos) RpcRequest(req common.RequestMsg, res *common.RequestOKMsg) error {
-	if ep.chanHead.pointer == ep.chanTail.pointer+1 {
+	freeChanExist := false
+	ep.mu.Lock()
+	var freeChanNo ChannelID
+	for i := ChannelID(0); i < CHAN_MAX; i++ {
+		if bit, ok := ep.freeChan[i]; (bit == false && ok == true) || ok == false {
+			freeChanExist = true
+			freeChanNo = i
+			break
+		}
+	}
+	if freeChanExist == false {
 		return errors.New("No free channel for new instance machine")
 	}
-	ep.lastInst.mu.Lock()
-	ep.lastInst.InstanceID++
-	localInst := ep.lastInst.InstanceID
-	ep.lastInst.mu.Unlock()
+	ep.lastInst++
+	localInst := ep.lastInst
 
-	ep.chanTail.mu.Lock()
-	ep.chanTail.pointer++
-	localChan := ep.chanTail.pointer
-	ep.chanTail.mu.Unlock()
-
+	localChan := freeChanNo
 	ep.inst2Chan[localInst] = localChan
+	ep.freeChan[localChan] = true
+	ep.mu.Unlock()
 
 	go ep.startInstanceState(localInst, req.Cmd, ep.innerChan[localChan])
 
@@ -73,7 +79,7 @@ func (ep *EPaxos) RpcRequest(req common.RequestMsg, res *common.RequestOKMsg) er
 		reply, more := <-ep.innerChan[localChan]
 		if r, ok := reply.(common.RequestOKMsg); ok && r.Ok == true {
 			res.Ok = true
-			// TODO: release the channel
+			ep.freeChan[localChan] = false
 			break
 		} else if !more {
 			return errors.New("Instance State Machine did not respond correctly")
@@ -138,6 +144,10 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 	ism.state = Start // starting from idle state, send preaccept to F
 	ism.preAcceptNo = 0
 	ism.chooseFast = true
+	ism.preAcceptBook = make(map[common.ReplicaID]bool)
+	paMsg := &common.PreAcceptMsg{} // pre-Accept message
+	aMsg := &common.AcceptMsg{}
+
 	//var innerMsg interface{}
 
 	for {
@@ -145,6 +155,7 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 		case Start:
 			deps := make([]common.InstRef, 0)
 			seqMax := common.Sequence(0)
+			ep.mu.Lock()
 			for index1, oneReplica := range ep.array {
 				for index2, oneInst := range oneReplica.Pending {
 					if interfCmd(oneInst.inst.Cmd, cmd) {
@@ -159,21 +170,19 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 			inst := &common.Instance{}
 			inst.Cmd = cmd
 			// modify and save instance atomically
-			inst.Mu.Lock()
 			inst.Seq = seq
 			inst.Deps = deps
 			// TODO: assign NDeps
 			ep.array[ep.self].Pending[instId] = &StatefulInst{inst: *inst, state: PreAccepted}
-			inst.Mu.Unlock()
+			ep.mu.Unlock()
 			ism.seqOK = seq
 			ism.depOK = deps
 
 			// send PreAccept to all other replicas in F
 			F := math.Floor(float64(ep.peers) / 2)
-			sendMsg := &common.PreAcceptMsg{}
-			sendMsg.Inst = *inst
-			sendMsg.Id = common.InstRef{ep.self, instId}
-			ism.FQuorum = ep.makeMulticast(sendMsg, int64(F-1))
+			paMsg.Inst = *inst
+			paMsg.Id = common.InstRef{ep.self, instId}
+			ism.FQuorum = ep.makeMulticast(paMsg, int64(F-1))
 			ism.preAcceptNo = int(F - 1)
 			ism.state = PreAccepted
 
@@ -188,17 +197,17 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 						log.Fatal("Wrong inner msg!")
 					}
 					// if the msg has been received from the sender, break
-					if ism.preAcceptBook[okMsg.Sender] == true {
+					if bit, ok := ism.preAcceptBook[okMsg.Sender]; bit == true && ok {
 						break
 					}
 					ism.preAcceptBook[okMsg.Sender] = true
 					ism.preAcceptNo--
 					// compare seq and dep
-					if okMsg.Seq > ism.seqOK {
+					if okMsg.Inst.Seq > ism.seqOK {
 						ism.chooseFast = false
-						ism.seqOK = okMsg.Seq
+						ism.seqOK = okMsg.Inst.Seq
 					}
-					if compareMerge(&ism.depOK, okMsg.Deps) == false {
+					if compareMerge(&ism.depOK, okMsg.Inst.Deps) == false {
 						ism.chooseFast = false
 					}
 					if ism.preAcceptNo == 0 {
@@ -213,14 +222,20 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 							inst.Deps = ism.depOK
 							ep.array[ep.self].Pending[instId] = &StatefulInst{inst: *inst, state: Accepted}
 							// send accepted msg to replicas
-							sendMsg := &common.AcceptMsg{}
-							sendMsg.Id = common.InstRef{Replica: ep.self, Inst: instId}
-							sendMsg.Inst = *inst
-							ism.FQuorum = ep.makeMulticast(sendMsg, int64(math.Floor(float64(ep.peers)/2))) // TODO: change the number of Multicast for faster response
+							aMsg.Id = common.InstRef{Replica: ep.self, Inst: instId}
+							aMsg.Inst = *inst
+							ism.FQuorum = ep.makeMulticast(aMsg, int64(math.Floor(float64(ep.peers)/2))) // TODO: change the number of Multicast for faster response
 						}
 					}
 				}
-			default:
+			case <-time.After(time.Millisecond * time.Duration(100)):
+				// If not received enough OK msg, re-multicase
+				if ism.preAcceptNo > 0 {
+					F := math.Floor(float64(ep.peers) / 2)
+					ism.FQuorum = ep.makeMulticast(paMsg, int64(F-1))
+					ism.preAcceptNo = int(F - 1)
+					ism.preAcceptBook = make(map[common.ReplicaID]bool)
+				}
 			}
 
 		case Accepted:
@@ -233,8 +248,14 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 				if ism.acceptNo == 0 {
 					ism.state = Committed
 				}
+			case <-time.After(time.Millisecond * time.Duration(100)):
+				// If not received enough OK msg, re-multicase
+				if ism.acceptNo > 0 {
+					F := math.Floor(float64(ep.peers) / 2)
+					ism.FQuorum = ep.makeMulticast(aMsg, int64(F-1))
+					ism.acceptNo = int(math.Floor(float64(ep.peers) / 2))
+				}
 			}
-		default:
 
 		case Committed:
 			inst := &common.Instance{}
