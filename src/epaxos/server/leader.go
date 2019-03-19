@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"math"
+	"time"
 )
 
 // EPaxos only distributes msgs from client and to Instance
@@ -94,9 +95,9 @@ func interfCmd(cmd1 common.Command, cmd2 common.Command) bool {
 // TODO: make a more fast implementation
 func compareMerge(dep1 *[]common.InstRef, dep2 []common.InstRef) bool { // return true if the same
 	ret := true
-	for index2, id2 := range dep2 {
+	for _, id2 := range dep2 {
 		exist := false
-		for index1, id1 := range *dep1 {
+		for _, id1 := range *dep1 {
 			if id1 == id2 {
 				exist = true
 				break
@@ -223,7 +224,7 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 			select {
 			case innerMsg := <-ism.innerChan:
 				ism.acceptNo--
-				if acceptMsg, ok := innerMsg.(common.AcceptOKMsg); ok != true {
+				if _, ok := innerMsg.(common.AcceptOKMsg); ok != true {
 					break
 				}
 				if ism.acceptNo == 0 {
@@ -248,7 +249,7 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 			sendMsg := &common.CommitMsg{}
 			sendMsg.Id = common.InstRef{Replica: ep.self, Inst: instId}
 			sendMsg.Inst = *inst
-			ep.makeMulticast(sendMsg, ep.peers-1)
+			ep.makeMulticast(sendMsg, int64(ep.peers-1))
 			ism.state = Idle
 			close(innerChan)
 			ism.innerChan <- common.RequestOKMsg{Err: false}

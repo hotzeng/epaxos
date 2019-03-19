@@ -76,7 +76,7 @@ type EPaxos struct {
 	probes   map[int64]chan bool
 	udp      *net.UDPConn
 	rpc      []chan interface{}
-	peers    int // number of peers, including itself
+	peers    int64 // number of peers, including itself
 	mu       sync.Mutex
 
 	// records which channel is allocated for each instance
@@ -146,8 +146,6 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 	ep.data = make(map[common.Key]common.Value)
 	ep.peers = nrep
 	ep.inst2Chan = make(map[common.InstanceID]ChannelID)
-	ep.chanHead = chanPointer{pointer: 0}
-	ep.chanTail = chanPointer{pointer: 0}
 
 	ep.innerChan = make([]chan interface{}, CHAN_MAX)
 	return ep
