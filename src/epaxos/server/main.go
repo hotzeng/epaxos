@@ -17,10 +17,8 @@ type InstState int32
 type LeaderState int32
 type ChannelID int32
 
-//some global variables
 const (
-	CHAN_MAX = 100 // the maximum number of channels is 100
-
+	CHAN_MAX = 100 // TODO: get rid of this!!!
 )
 
 const (
@@ -165,6 +163,9 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 	ep.freeChan = make(map[ChannelID]bool)
 
 	ep.innerChan = make([]chan interface{}, CHAN_MAX)
+	for i := 0; i < CHAN_MAX; i++ {
+		ep.innerChan[i] = make(chan interface{}) // TODO: should we buffer there?
+	}
 	return ep
 }
 
