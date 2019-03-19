@@ -3,13 +3,26 @@ package main
 import (
 	"epaxos/common"
 	"errors"
+	"github.com/docopt/docopt-go"
 	"log"
 	"math/rand"
 	"sync"
 	"time"
 )
 
-func (ep *EPaxosCluster) probeAll(verbose bool) error {
+func (ep *EPaxosCluster) cmdProbe(argv []string) error {
+	usage := `usage: client probe [-v]
+options:
+	-h, --help
+	-v, --verbose        be verbose
+`
+	args, _ := docopt.ParseArgs(usage, argv, "epaxos-client version "+VERSION)
+
+	verbose, err := args.Bool("--verbose")
+	if err != nil {
+		return err
+	}
+
 	if verbose {
 		log.Printf("Start probeAll for %d", len(ep.rpc))
 	}

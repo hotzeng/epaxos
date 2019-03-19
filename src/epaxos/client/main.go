@@ -131,56 +131,8 @@ func runCommand(ep *EPaxosCluster, cmd string, args []string) error {
 		return ep.cmdProbe(argv)
 	case "put":
 		return ep.cmdPut(argv)
+	case "put-get", "get":
+		return ep.cmdPutGet(argv)
 	}
 	return errors.New("Command not found")
-}
-
-func (ep *EPaxosCluster) cmdProbe(argv []string) error {
-	usage := `usage: client probe [-v]
-options:
-	-h, --help
-	-v, --verbose        be verbose
-`
-	args, _ := docopt.ParseArgs(usage, argv, "epaxos-client version "+VERSION)
-
-	verbose, err := args.Bool("--verbose")
-	if err != nil {
-		return err
-	}
-
-	return ep.probeAll(verbose)
-}
-
-func (ep *EPaxosCluster) cmdPut(argv []string) error {
-	usage := `usage: client put [-v] <server> <key> <value>
-options:
-	-h, --help
-	-v, --verbose        be verbose
-`
-	args, _ := docopt.ParseArgs(usage, argv, "epaxos-client version "+VERSION)
-
-	verbose, err := args.Bool("--verbose")
-	if err != nil {
-		return err
-	}
-
-	s, err := args.Int("<server>")
-	if err != nil {
-		return err
-	}
-	server := common.ReplicaID(s)
-
-	k, err := args.Int("<key>")
-	if err != nil {
-		return err
-	}
-	key := common.Key(k)
-
-	v, err := args.Int("<value>")
-	if err != nil {
-		return err
-	}
-	value := common.Value(v)
-
-	return ep.doPut(verbose, server, key, value)
 }
