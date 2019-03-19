@@ -194,6 +194,10 @@ func main() {
 		log.Fatal(err)
 	}
 
+	if rep < 0 || rep >= nrep {
+		log.Fatalf("Invalid rep %d out of nrep %d", rep, nrep)
+	}
+
 	ep := NewEPaxos(nrep, common.ReplicaID(rep))
 	if ep == nil {
 		log.Fatal("EPaxos creation failed")

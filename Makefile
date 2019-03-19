@@ -12,6 +12,7 @@ bin/client: $(FILES) VERSION
 	go install -ldflags "$(LDFLAGS)" epaxos/client
 
 debug: all
+	cp entrypoint.sh VERSION bin/
 	cp Dockerfile.debug bin/Dockerfile
 	docker build -t b1f6c1c4/epaxos:latest bin/
 

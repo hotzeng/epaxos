@@ -1,4 +1,6 @@
 FROM golang:1.12
 COPY . /go/bin/
+WORKDIR /go/bin/
+ENTRYPOINT ["/go/bin/entrypoint.sh"]
 CMD ["/go/bin/server"]
 EXPOSE 23330/udp

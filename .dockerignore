@@ -1,4 +1,5 @@
 *
+!entrypoint.sh
 !/VERSION
 !/COMMITHASH
 !/Makefile
