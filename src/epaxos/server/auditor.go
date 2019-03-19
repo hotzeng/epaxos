@@ -24,10 +24,11 @@ func (ep *EPaxos) ProcessPreAccept(req common.PreAcceptMsg) error {
 	}
 	// update deps
 	compareMerge(&req.Inst.Deps, interf)
-	inst := &common.Instance{}
-	inst.Cmd = req.Inst.Cmd
-	inst.Seq = seqMax
-	inst.Deps = req.Inst.Deps
+	inst := common.Instance{
+		Cmd:  req.Inst.Cmd,
+		Seq:  seqMax,
+		Deps: req.Inst.Deps,
+	}
 	// check if need to fill in null elements in the Pending slice
 	pendingLen := len(ep.array[req.Id.Replica].Pending)
 	if pendingLen >= int(req.Id.Inst) {
@@ -38,14 +39,15 @@ func (ep *EPaxos) ProcessPreAccept(req common.PreAcceptMsg) error {
 			ep.array[req.Id.Replica].Pending = append(ep.array[req.Id.Replica].Pending, &StatefulInst{})
 		}
 	}
-	ep.array[req.Id.Replica].Pending = append(ep.array[req.Id.Replica].Pending, &StatefulInst{inst: *inst, state: PreAccepted})
+	ep.array[req.Id.Replica].Pending = append(ep.array[req.Id.Replica].Pending, &StatefulInst{inst: inst, state: PreAccepted})
 	ep.mu.Unlock()
 
 	// prepare PreAcceptOK msg and reply
-	sendMsg := &common.PreAcceptOKMsg{}
-	sendMsg.Id = common.InstRef{Replica: req.Id.Replica, Inst: req.Id.Inst}
-	sendMsg.Inst = *inst
-	sendMsg.Sender = ep.self
+	sendMsg := common.PreAcceptOKMsg{
+		Id:     common.InstRef{Replica: req.Id.Replica, Inst: req.Id.Inst},
+		Inst:   inst,
+		Sender: ep.self,
+	}
 	ep.rpc[req.Id.Replica] <- sendMsg
 	if ep.verbose == true {
 		fmt.Printf("Auditor %d replied PreAcceptOKMsg!\n", ep.self)

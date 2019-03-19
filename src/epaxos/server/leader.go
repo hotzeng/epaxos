@@ -3,7 +3,6 @@ package main
 import (
 	"epaxos/common"
 	"errors"
-	"fmt"
 	"log"
 	"math"
 	"time"
@@ -57,7 +56,7 @@ func (ep *EPaxos) RpcRequest(req common.RequestMsg, res *common.RequestOKMsg) er
 	ep.mu.Unlock()
 
 	if ep.verbose == true {
-		fmt.Printf("Leader %d received request!\n", ep.self)
+		log.Printf("Leader %d received request!", ep.self)
 	}
 	go ep.startInstanceState(localInst, req.Cmd, ep.innerChan[localChan])
 
@@ -131,8 +130,8 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 	ism.preAcceptNo = 0
 	ism.chooseFast = true
 	ism.preAcceptBook = make(map[common.ReplicaID]bool)
-	paMsg := &common.PreAcceptMsg{} // pre-Accept message
-	aMsg := &common.AcceptMsg{}
+	var paMsg common.PreAcceptMsg
+	var aMsg common.AcceptMsg
 
 	//var innerMsg interface{}
 
@@ -140,7 +139,7 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 		switch ism.state {
 		case Start:
 			if ep.verbose == true {
-				fmt.Printf("Leader %d in Start Phase\n", ep.self)
+				log.Printf("Leader %d in Start Phase", ep.self)
 			}
 			deps := make([]common.InstRef, 0)
 			seqMax := common.Sequence(0)
@@ -156,16 +155,17 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 				}
 			}
 			seq := seqMax + 1
-			inst := &common.Instance{}
-			inst.Cmd = cmd
 			// modify and save instance atomically
-			inst.Seq = seq
-			inst.Deps = deps
+			inst := common.Instance{
+				Cmd:  cmd,
+				Seq:  seq,
+				Deps: deps,
+			}
 			// TODO: assign NDeps
 			//ep.array[ep.self].Pending[instId] = &StatefulInst{inst: *inst, state: PreAccepted}
-			ep.array[ep.self].Pending = append(ep.array[ep.self].Pending, &StatefulInst{inst: *inst, state: PreAccepted})
+			ep.array[ep.self].Pending = append(ep.array[ep.self].Pending, &StatefulInst{inst: inst, state: PreAccepted})
 			if len(ep.array[ep.self].Pending) != int(instId) {
-				fmt.Printf("Length of Instructions not correct!")
+				log.Println("Length of Instructions not correct!")
 			}
 			ep.mu.Unlock()
 			ism.seqOK = seq
@@ -174,11 +174,11 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 			// send PreAccept to all other replicas in F
 			//F := math.Floor(float64(ep.peers) / 2)
 			F := ep.peers
-			paMsg.Inst = *inst
-			paMsg.Id = common.InstRef{ep.self, instId}
+			paMsg.Inst = inst
+			paMsg.Id = common.InstRef{Replica: ep.self, Inst: instId}
 			ism.FQuorum = ep.makeMulticast(paMsg, int64(F-1))
 			if ep.verbose == true {
-				fmt.Printf("Leader %d finished MultiCast for PreAccept\n", ep.self)
+				log.Printf("Leader %d finished MultiCast for PreAccept", ep.self)
 			}
 			ism.preAcceptNo = int(F - 1)
 			ism.state = PreAccepted
@@ -186,7 +186,7 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 		case PreAccepted: // waiting for PreAccepOKMsg
 			// wait for msg non-blockingly
 			if ep.verbose == true {
-				fmt.Printf("Leader %d in PreAccepted Phase\n", ep.self)
+				log.Printf("Leader %d in PreAccepted Phase", ep.self)
 			}
 			select {
 			case innerMsg := <-ism.innerChan:
@@ -212,28 +212,29 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 					}
 					if ism.preAcceptNo == 0 {
 						if ep.verbose == true {
-							fmt.Printf("Leader %d received enough PreAccept Msg\n", ep.self)
+							log.Printf("Leader %d received enough PreAccept Msg", ep.self)
 						}
 						if ism.chooseFast == true {
 							ism.state = Committed
 							if ep.verbose == true {
-								fmt.Printf("Leader %d choose Fast Path\n", ep.self)
+								log.Printf("Leader %d choose Fast Path", ep.self)
 							}
 
 						} else {
 							ism.state = Accepted
 							ism.acceptNo = int(math.Floor(float64(ep.peers) / 2))
-							inst := &common.Instance{}
-							inst.Cmd = cmd
-							inst.Seq = ism.seqOK
-							inst.Deps = ism.depOK
-							ep.array[ep.self].Pending[instId-1] = &StatefulInst{inst: *inst, state: Accepted}
+							inst := common.Instance{
+								Cmd:  cmd,
+								Seq:  ism.seqOK,
+								Deps: ism.depOK,
+							}
+							ep.array[ep.self].Pending[instId-1] = &StatefulInst{inst: inst, state: Accepted}
 							// send accepted msg to replicas
 							aMsg.Id = common.InstRef{Replica: ep.self, Inst: instId}
-							aMsg.Inst = *inst
+							aMsg.Inst = inst
 							ism.FQuorum = ep.makeMulticast(aMsg, int64(math.Floor(float64(ep.peers)/2))) // TODO: change the number of Multicast for faster response
 							if ep.verbose == true {
-								fmt.Printf("Leader %d finished MultiCase for Accept\n", ep.self)
+								log.Printf("Leader %d finished MultiCase for Accept", ep.self)
 							}
 						}
 					}
@@ -248,13 +249,13 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 					ism.preAcceptBook = make(map[common.ReplicaID]bool)
 				}
 				if ep.verbose == true {
-					fmt.Printf("Time out! Leader %d re-send MultiCast for PreAccept Msg!\n", ep.self)
+					log.Printf("Time out! Leader %d re-send MultiCast for PreAccept Msg!", ep.self)
 				}
 			}
 
 		case Accepted:
 			if ep.verbose == true {
-				fmt.Printf("Leader %d in Accepted Phase!\n", ep.self)
+				log.Printf("Leader %d in Accepted Phase!", ep.self)
 			}
 			select {
 			case innerMsg := <-ism.innerChan:
@@ -265,7 +266,7 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 				if ism.acceptNo == 0 {
 					ism.state = Committed
 					if ep.verbose == true {
-						fmt.Printf("Leader %d received enough Accepted Msg!\n", ep.self)
+						log.Printf("Leader %d received enough Accepted Msg!", ep.self)
 					}
 				}
 			case <-time.After(time.Millisecond * time.Duration(100)):
@@ -276,23 +277,25 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 					ism.acceptNo = int(math.Floor(float64(ep.peers) / 2))
 				}
 				if ep.verbose == true {
-					fmt.Printf("Time out! Leader %d re-send MultiCast for Accept Msg!\n", ep.self)
+					log.Printf("Time out! Leader %d re-send MultiCast for Accept Msg!", ep.self)
 				}
 			}
 
 		case Committed:
 			if ep.verbose == true {
-				fmt.Printf("Leader %d in Committed Phase!\n", ep.self)
+				log.Printf("Leader %d in Committed Phase!", ep.self)
 			}
-			inst := &common.Instance{}
-			inst.Cmd = cmd
-			inst.Seq = ism.seqOK
-			inst.Deps = ism.depOK
-			ep.array[ep.self].Pending[instId-1] = &StatefulInst{inst: *inst, state: Committed}
+			inst := common.Instance{
+				Cmd:  cmd,
+				Seq:  ism.seqOK,
+				Deps: ism.depOK,
+			}
+			ep.array[ep.self].Pending[instId-1] = &StatefulInst{inst: inst, state: Committed}
 			// send commit msg to replicas
-			sendMsg := &common.CommitMsg{}
-			sendMsg.Id = common.InstRef{Replica: ep.self, Inst: instId}
-			sendMsg.Inst = *inst
+			sendMsg := common.CommitMsg{
+				Id:   common.InstRef{Replica: ep.self, Inst: instId},
+				Inst: inst,
+			}
 			ep.makeMulticast(sendMsg, int64(ep.peers-1))
 			ism.state = Idle
 			close(innerChan)

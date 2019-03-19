@@ -34,7 +34,7 @@ func (ep *EPaxos) recoverFromLog() error {
 	}
 	ep.lastInst = 0
 	ep.data = make(map[common.Key]common.Value)
-	cmd := &common.Command{}
+	var cmd common.Command
 	for {
 		err = struc.Unpack(file, &cmd)
 		if err != nil {
