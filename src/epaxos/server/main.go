@@ -4,9 +4,7 @@ import (
 	"epaxos/common"
 	"fmt"
 	"log"
-	"math/rand"
 	"net"
-	"net/rpc"
 	"os"
 	"strconv"
 	"sync"
@@ -69,6 +67,7 @@ type InstanceState struct {
 }
 
 type EPaxos struct {
+	verbose  bool
 	self     common.ReplicaID
 	lastInst common.InstanceID
 	array    []*InstList // one InstList per replica
@@ -79,6 +78,7 @@ type EPaxos struct {
 	rpc      []chan interface{}
 	peers    int // number of peers, including itself
 	mu       sync.Mutex
+
 	// records which channel is allocated for each instance
 	inst2Chan map[common.InstanceID]ChannelID
 	//chanHead  chanPointer
@@ -91,12 +91,18 @@ type EPaxos struct {
 	innerChan []chan interface{}
 
 	// channels to other servers/replicas
-	inbound chan interface{}
+	inbound *chan interface{}
 }
 
-func NewEPaxos(nrep int64, rep common.ReplicaID, endpoint string, buff int64) *EPaxos {
+func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 	dir := common.GetEnv("EPAXOS_DATA_PREFIX", "./data/data-")
+	buff, err := strconv.ParseInt(common.GetEnv("EPAXOS_BUFFER", "1024"), 10, 64)
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
 	ep := new(EPaxos)
+	ep.verbose = common.GetEnv("EPAXOS_DEBUG", "TRUE") == "TRUE"
 	ep.self = rep
 	ep.array = make([]*InstList, nrep)
 	ep.rpc = make([]chan interface{}, nrep)
@@ -117,6 +123,7 @@ func NewEPaxos(nrep int64, rep common.ReplicaID, endpoint string, buff int64) *E
 		ep.rpc[i] = make(chan interface{}, buff)
 	}
 	ep.inbound = &ep.rpc[ep.self]
+	endpoint := common.GetEnv("EPAXOS_LISTEN", "0.0.0.0:23333")
 	addr, err := net.ResolveUDPAddr("udp", endpoint)
 	if err != nil {
 		log.Println(err)
@@ -124,6 +131,7 @@ func NewEPaxos(nrep int64, rep common.ReplicaID, endpoint string, buff int64) *E
 	}
 	log.Printf("ListenUDP on %s\n", endpoint)
 	ep.udp, err = net.ListenUDP("udp", addr)
+	ep.udp.SetWriteBuffer(0)
 	if err != nil {
 		log.Println(err)
 		return nil
@@ -134,6 +142,14 @@ func NewEPaxos(nrep int64, rep common.ReplicaID, endpoint string, buff int64) *E
 		log.Println(err)
 		return nil
 	}
+
+	ep.data = make(map[common.Key]common.Value)
+	ep.peers = nrep
+	ep.inst2Chan = make(map[common.InstanceID]ChannelID)
+	ep.chanHead = chanPointer{pointer: 0}
+	ep.chanTail = chanPointer{pointer: 0}
+
+	ep.innerChan = make([]chan interface{}, CHAN_MAX)
 	return ep
 }
 
@@ -162,28 +178,13 @@ func main() {
 	logW.Id = common.ReplicaID(rep)
 
 	log.Printf("This is epaxos-server, version %s", VERSION)
-	rand.Seed(time.Now().UTC().UnixNano() + rep)
+	common.InitializeRand()
 	nrep, err := strconv.ParseInt(common.GetEnv("EPAXOS_NREPLICAS", "1"), 10, 64)
 	if err != nil {
 		log.Fatal(err)
 	}
-	buff, err := strconv.ParseInt(common.GetEnv("EPAXOS_BUFFER", "1024"), 10, 64)
-	if err != nil {
-		log.Fatal(err)
-	}
 
-	endpoint := common.GetEnv("EPAXOS_LISTEN", "0.0.0.0:23333")
-	addr, err := net.ResolveTCPAddr("tcp", endpoint)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	clientIn, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	ep := NewEPaxos(nrep, common.ReplicaID(rep), endpoint, buff)
+	ep := NewEPaxos(nrep, common.ReplicaID(rep))
 	if ep == nil {
 		log.Fatal("EPaxos creation failed")
 	}
@@ -192,7 +193,4 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	rpc.Register(ep)
-	rpc.Accept(clientIn)
 }
