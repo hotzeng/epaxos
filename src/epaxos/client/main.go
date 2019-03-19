@@ -18,6 +18,8 @@ var configEPaxos struct {
 	ServerFmt  string
 	ServerBias int64
 	Buffer     int64
+	WBuffer    int
+	RBuffer    int
 	NReps      int64
 	TimeOut    time.Duration
 }
@@ -66,7 +68,9 @@ options:
 	-v, --verbose   trace every package
 	-f <fmt>        server endpoints [default: localhost:2333%d]
 	-B <bias>       server format bias [default: 0]
-	-b <buffer>     size of write buffer [default: 1024]
+	-q <buffer>     size of write queue [default: 1024]
+	--write <wb>    size of udp write buffer [default: 1048576]
+	--read <rb>     size of udp read buffer [default: 1048576]
 	-n <nreps>      number of servers [default: 1]
 	-t <timeout>    seconds to wait [default: 5.0]
 `
@@ -90,11 +94,23 @@ options:
 	}
 	configEPaxos.ServerBias = int64(bias)
 
-	buff, err := args.Int("-b")
+	buff, err := args.Int("-q")
 	if err != nil {
 		log.Fatal(err)
 	}
 	configEPaxos.Buffer = int64(buff)
+
+	wbuff, err := args.Int("--write")
+	if err != nil {
+		log.Fatal(err)
+	}
+	configEPaxos.WBuffer = wbuff
+
+	rbuff, err := args.Int("--read")
+	if err != nil {
+		log.Fatal(err)
+	}
+	configEPaxos.RBuffer = rbuff
 
 	nreps, err := args.Int("-n")
 	if err != nil {

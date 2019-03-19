@@ -22,6 +22,8 @@ func (ep *EPaxosCluster) forkUdp() error {
 		if err != nil {
 			return err
 		}
+		conn.SetWriteBuffer(configEPaxos.WBuffer)
+		conn.SetReadBuffer(configEPaxos.RBuffer)
 		id := common.ReplicaID(i)
 		go ep.writeUdp(id, conn, ch)
 		go ep.readUdp(conn, ep.inbound[i])

@@ -5,6 +5,7 @@
 ### Run locally
 
 ```sh
+sudo ./tune-kernel.sh # Optional
 source env.sh
 make
 ./bin/server
@@ -13,6 +14,7 @@ make
 ### Run small-scale with docker-compose
 
 ```sh
+sudo ./tune-kernel.sh # Optional
 source env.sh
 make debug
 ./compose 3 up -d
