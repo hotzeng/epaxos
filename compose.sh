@@ -5,6 +5,10 @@ if [ -z "$NREPS" ]; then
     echo "Usage: ./compose.sh <nreps> <args>..."
     exit 1
 fi
+if [ "$NREPS" -gt "10" ]; then
+    echo "Maximum 10 replicas for docker-compose"
+    exit 2
+fi
 shift
 
 VALID=
@@ -36,6 +40,7 @@ EOF
     container_name: epaxos-server-$I
     restart: always
     environment:
+      EPAXOS_DEBUG: "TRUE"
       EPAXOS_LISTEN: "0.0.0.0:23333"
       EPAXOS_NREPLICAS: "$NREPS"
       EPAXOS_REPLICA_ID: "$I"
@@ -43,7 +48,7 @@ EOF
       EPAXOS_SERVERS_FMT: "epaxos-server-%d:23333"
       EPAXOS_DATA_PREFIX: "/data/epaxos/data-"
     ports:
-      - "$((23330+$I)):23333"
+      - "$((23330+$I)):23333/udp"
     volumes:
       - ./data/data-$I:/data/epaxos
     networks:

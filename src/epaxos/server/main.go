@@ -4,7 +4,6 @@ import (
 	"epaxos/common"
 	"fmt"
 	"log"
-	"math/rand"
 	"net"
 	"os"
 	"strconv"
@@ -72,6 +71,7 @@ type LastInstanceID struct {
 }
 
 type EPaxos struct {
+	verbose  bool
 	self     common.ReplicaID
 	lastInst LastInstanceID
 	array    []*InstList // one InstList per replica
@@ -102,6 +102,7 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 		return nil
 	}
 	ep := new(EPaxos)
+	ep.verbose = common.GetEnv("EPAXOS_DEBUG", "TRUE") == "TRUE"
 	ep.self = rep
 	ep.array = make([]*InstList, nrep)
 	ep.rpc = make([]chan interface{}, nrep)
@@ -130,6 +131,7 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 	}
 	log.Printf("ListenUDP on %s\n", endpoint)
 	ep.udp, err = net.ListenUDP("udp", addr)
+	ep.udp.SetWriteBuffer(0)
 	if err != nil {
 		log.Println(err)
 		return nil
@@ -176,7 +178,7 @@ func main() {
 	logW.Id = common.ReplicaID(rep)
 
 	log.Printf("This is epaxos-server, version %s", VERSION)
-	rand.Seed(time.Now().UTC().UnixNano() + rep)
+	common.InitializeRand()
 	nrep, err := strconv.ParseInt(common.GetEnv("EPAXOS_NREPLICAS", "1"), 10, 64)
 	if err != nil {
 		log.Fatal(err)

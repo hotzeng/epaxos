@@ -1,7 +1,4 @@
 FROM golang:1.12
-COPY Makefile .
-COPY src/ /go/src
-COPY VERSION .
-RUN make all
+COPY . /go/bin/
 CMD ["/go/bin/server"]
 EXPOSE 23333/udp

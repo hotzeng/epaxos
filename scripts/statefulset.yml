@@ -43,6 +43,8 @@ spec:
             exec:
               command: ["/bin/sh", "-c", "export EPAXOS_REPLICA_ID=${HOSTNAME##*-}"]
         env:
+          - name: EPAXOS_DEBUG
+            value: "FALSE"
           - name: EPAXOS_LISTEN
             value: "0.0.0.0:23333"
           - name: EPAXOS_NREPLICAS

@@ -244,5 +244,5 @@ func (ep *EPaxos) ProcessRequest(req common.RequestMsg) (common.RequestOKMsg, er
 
 func (ep *EPaxos) ProcessRequestAndRead(req common.RequestAndReadMsg) (common.RequestAndReadOKMsg, error) {
 	// TODO
-	return common.RequestAndReadOKMsg{}, nil
+	return common.RequestAndReadOKMsg{MId: req.MId}, nil
 }
