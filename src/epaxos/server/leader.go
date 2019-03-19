@@ -56,31 +56,23 @@ func (ep *EPaxos) RpcRequest(req common.RequestMsg, res *common.RequestOKMsg) er
 	ep.mu.Unlock()
 
 	if ep.verbose {
-		log.Printf("Leader %d received request!", localChan)
+		log.Printf("Leader %d->%d received request!", localInst, localChan)
 	}
-	go ep.startInstanceState(localInst, req.Cmd, ep.innerChan[localChan])
-
-	for {
-		reply, more := <-ep.innerChan[localChan]
-		if r, ok := reply.(common.RequestOKMsg); ok && !r.Err {
-			res.Err = false
-			ep.freeChan[localChan] = false
-			break
-		} else if !more {
-			return errors.New("Instance State Machine did not respond correctly")
-		}
-	}
-	return nil
+	return ep.startInstanceState(localInst, req.Cmd, ep.innerChan[localChan])
+	// TODO: Restore innerchan
 }
 
 func (ep *EPaxos) ProcessPreAcceptOK(req common.PreAcceptOKMsg) {
 	instId := req.Id.Inst
+	ep.mu.Lock()
+	defer ep.mu.Unlock()
+	chanId := ep.inst2Chan[instId]
 	if ep.verbose {
-		log.Printf("EPaxos.ProcessPreAcceptOK %d start %v", instId, req)
+		log.Printf("EPaxos.ProcessPreAcceptOK %d->%d start %v", instId, chanId, req)
 	}
-	ep.innerChan[instId] <- req
+	ep.innerChan[chanId] <- req
 	if ep.verbose {
-		log.Printf("EPaxos.ProcessPreAcceptOK %d done %v", instId, req)
+		log.Printf("EPaxos.ProcessPreAcceptOK %d->%d done %v", instId, chanId, req)
 	}
 }
 
@@ -129,7 +121,7 @@ func compareMerge(dep1 *[]common.InstRef, dep2 []common.InstRef) bool { // retur
 }
 
 // start Instance state machine after receiving a request from client
-func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Command, innerChan chan interface{}) {
+func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Command, innerChan chan interface{}) error {
 	// ism abbreviated to instance state machine
 	ism := instStateMachine{
 		self: instId,
@@ -200,16 +192,17 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 			select {
 			case innerMsg := <-ism.innerChan:
 				if ep.verbose {
-					log.Printf("Leader %d in PreAccepted Phase and got msg %v", instId, innerMsg)
+					log.Printf("Leader %d in PreAccepted Phase (%d/%d) and got msg %v", instId, ism.preAcceptNo, ep.peers-1, innerMsg)
 				}
 				if okMsg, ok := innerMsg.(common.PreAcceptOKMsg); ok {
 					// check instId is correct
 					if okMsg.Id.Inst != ism.self {
-						// TODO: change this fatal command
-						log.Fatal("Wrong inner msg!")
+						log.Printf("Fatal: wrong inner msg, expect %d but is %d!", ism.self, okMsg.Id.Inst)
+						return errors.New("wrong inner msg")
 					}
 					// if the msg has been received from the sender, break
 					if bit, ok := ism.preAcceptBook[okMsg.Sender]; bit && ok {
+						log.Printf("Warning: duplicated msg from %d, ignored", okMsg.Sender)
 						break
 					}
 					ism.preAcceptBook[okMsg.Sender] = true
@@ -222,10 +215,10 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 					if !compareMerge(&ism.depOK, okMsg.Inst.Deps) {
 						ism.chooseFast = false
 					}
+					if ep.verbose {
+						log.Printf("Leader %d needs %d more PreAcceptMsg", instId, ism.preAcceptNo)
+					}
 					if ism.preAcceptNo == 0 {
-						if ep.verbose {
-							log.Printf("Leader %d received enough PreAccept Msg", instId)
-						}
 						if ism.chooseFast {
 							ism.state = Committed
 							if ep.verbose {
@@ -310,12 +303,8 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 			}
 			ep.makeMulticast(sendMsg, int64(ep.peers-1))
 			ism.state = Idle
-			close(innerChan)
-			ism.innerChan <- common.RequestOKMsg{Err: false}
-			return
+			return nil
 		}
-
-		log.Printf("PHASE CHANGE startInstanceState %d to %d", instId, ism.state)
 	}
 }
 
