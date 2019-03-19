@@ -133,6 +133,8 @@ func runCommand(ep *EPaxosCluster, cmd string, args []string) error {
 		return ep.cmdPut(argv)
 	case "put-get", "get":
 		return ep.cmdPutGet(argv)
+	case "batch-put":
+		return ep.cmdBatchPut(argv)
 	}
 	return errors.New("Command not found")
 }
