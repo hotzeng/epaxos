@@ -109,6 +109,7 @@ func (ep *EPaxos) readUdp() error {
 					log.Println(err)
 				}
 			}()
+			continue
 		case common.RequestMsg:
 			go func() {
 				r, err := ep.ProcessRequest(m)
@@ -122,6 +123,7 @@ func (ep *EPaxos) readUdp() error {
 					log.Println(err)
 				}
 			}()
+			continue
 		case common.RequestAndReadMsg:
 			go func() {
 				r, err := ep.ProcessRequestAndRead(m)
@@ -135,6 +137,7 @@ func (ep *EPaxos) readUdp() error {
 					log.Println(err)
 				}
 			}()
+			continue
 		case common.ProbeReqMsg:
 			go func() {
 				err := ep.sendProbe(m.Replica)
@@ -151,8 +154,10 @@ func (ep *EPaxos) readUdp() error {
 					log.Println(err)
 				}
 			}()
+			continue
 		case common.ProbeMsg:
 			go ep.recvProbe(&m)
+			continue
 		}
 		*ep.inbound <- msg
 	}
