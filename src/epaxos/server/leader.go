@@ -78,11 +78,30 @@ func (ep *EPaxos) ProcessPreAcceptOK(req common.PreAcceptOKMsg) {
 
 func (ep *EPaxos) ProcessAcceptOK(req common.AcceptOKMsg) {
 	instId := req.Id.Inst
-	ep.innerChan[instId] <- req
+	ep.mu.Lock()
+	defer ep.mu.Unlock()
+	chanId := ep.inst2Chan[instId]
+	if ep.verbose {
+		log.Printf("EPaxos.ProcessAcceptOK %d->%d start %v", instId, chanId, req)
+	}
+	ep.innerChan[chanId] <- req
+	if ep.verbose {
+		log.Printf("EPaxos.ProcessAcceptOK %d->%d done %v", instId, chanId, req)
+	}
 }
 
 func (ep *EPaxos) ProcessPrepareOK(req common.PrepareOKMsg) {
-	// TODO
+	instId := req.Id.Inst
+	ep.mu.Lock()
+	defer ep.mu.Unlock()
+	chanId := ep.inst2Chan[instId]
+	if ep.verbose {
+		log.Printf("EPaxos.ProcessPrepareOK %d->%d start %v", instId, chanId, req)
+	}
+	ep.innerChan[chanId] <- req
+	if ep.verbose {
+		log.Printf("EPaxos.ProcessPrepareOK %d->%d done %v", instId, chanId, req)
+	}
 }
 
 // help func to check the interference between two commands
