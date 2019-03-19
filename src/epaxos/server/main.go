@@ -104,6 +104,7 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 	ep := new(EPaxos)
 	ep.verbose = common.GetEnv("EPAXOS_DEBUG", "TRUE") == "TRUE"
 	ep.self = rep
+	ep.lastInst = common.InstanceID(0)
 	ep.array = make([]*InstList, nrep)
 	ep.rpc = make([]chan interface{}, nrep)
 	for i := int64(0); i < nrep; i++ {
@@ -146,6 +147,7 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 	ep.data = make(map[common.Key]common.Value)
 	ep.peers = nrep
 	ep.inst2Chan = make(map[common.InstanceID]ChannelID)
+	ep.freeChan = make(map[ChannelID]bool)
 
 	ep.innerChan = make([]chan interface{}, CHAN_MAX)
 	return ep

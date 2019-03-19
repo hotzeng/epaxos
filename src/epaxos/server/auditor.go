@@ -1,8 +1,14 @@
 package main
 
-import "epaxos/common"
+import (
+	"epaxos/common"
+	"fmt"
+)
 
 func (ep *EPaxos) ProcessPreAccept(req common.PreAcceptMsg) error {
+	if ep.verbose == true {
+		fmt.Printf("Auditor %d received PreAcceptMsg!\n", ep.self)
+	}
 	interf := make([]common.InstRef, 0)
 	seqMax := req.Inst.Seq
 	ep.mu.Lock()
@@ -22,7 +28,17 @@ func (ep *EPaxos) ProcessPreAccept(req common.PreAcceptMsg) error {
 	inst.Cmd = req.Inst.Cmd
 	inst.Seq = seqMax
 	inst.Deps = req.Inst.Deps
-	ep.array[req.Id.Replica].Pending[req.Id.Inst] = &StatefulInst{inst: *inst, state: PreAccepted}
+	// check if need to fill in null elements in the Pending slice
+	pendingLen := len(ep.array[req.Id.Replica].Pending)
+	if pendingLen >= int(req.Id.Inst) {
+		fmt.Println("Pending array is erroneously wrong")
+	} else if pendingLen < int(req.Id.Inst)-1 {
+		// if too short, add nil elements
+		for i := pendingLen; i < int(req.Id.Inst)-1; i++ {
+			ep.array[req.Id.Replica].Pending = append(ep.array[req.Id.Replica].Pending, &StatefulInst{})
+		}
+	}
+	ep.array[req.Id.Replica].Pending = append(ep.array[req.Id.Replica].Pending, &StatefulInst{inst: *inst, state: PreAccepted})
 	ep.mu.Unlock()
 
 	// prepare PreAcceptOK msg and reply
@@ -31,6 +47,9 @@ func (ep *EPaxos) ProcessPreAccept(req common.PreAcceptMsg) error {
 	sendMsg.Inst = *inst
 	sendMsg.Sender = ep.self
 	ep.rpc[req.Id.Replica] <- sendMsg
+	if ep.verbose == true {
+		fmt.Printf("Auditor %d replied PreAcceptOKMsg!\n", ep.self)
+	}
 	return nil
 }
 
