@@ -78,6 +78,7 @@ type EPaxos struct {
 	rpc      []chan interface{}
 	peers    int64 // number of peers, including itself
 	mu       sync.Mutex
+	timeout  time.Duration
 
 	// records which channel is allocated for each instance
 	inst2Chan map[common.InstanceID]ChannelID
@@ -89,13 +90,15 @@ type EPaxos struct {
 
 	// channels for Instance state machines
 	innerChan []chan interface{}
-
-	// channels to other servers/replicas
-	inbound *chan interface{}
 }
 
 func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 	dir := common.GetEnv("EPAXOS_DATA_PREFIX", "./data/data-")
+	to, err := strconv.ParseInt(common.GetEnv("EPAXOS_TIMEOUT", "5000"), 10, 64)
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
 	buff, err := strconv.ParseInt(common.GetEnv("EPAXOS_BUFFER", "1024"), 10, 64)
 	if err != nil {
 		log.Println(err)
@@ -115,6 +118,7 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 	ep.verbose = common.GetEnv("EPAXOS_DEBUG", "TRUE") == "TRUE"
 	log.Printf("I'm #%d, total %d replicas", rep, nrep)
 	ep.self = rep
+	ep.timeout = time.Duration(to) * time.Millisecond
 	ep.lastInst = common.InstanceID(0)
 	ep.array = make([]*InstList, nrep)
 	ep.rpc = make([]chan interface{}, nrep)
@@ -134,7 +138,6 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 		ep.array[i] = lst
 		ep.rpc[i] = make(chan interface{}, buff)
 	}
-	ep.inbound = &ep.rpc[ep.self]
 	endpoint := common.GetEnv("EPAXOS_LISTEN", "0.0.0.0:23330")
 	addr, err := net.ResolveUDPAddr("udp", endpoint)
 	if err != nil {

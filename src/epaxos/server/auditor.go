@@ -2,12 +2,12 @@ package main
 
 import (
 	"epaxos/common"
-	"fmt"
+	"log"
 )
 
-func (ep *EPaxos) ProcessPreAccept(req common.PreAcceptMsg) error {
+func (ep *EPaxos) ProcessPreAccept(req common.PreAcceptMsg) {
 	if ep.verbose {
-		fmt.Printf("Auditor %d received PreAcceptMsg!\n", ep.self)
+		log.Printf("Auditor %d received PreAcceptMsg!", ep.self)
 	}
 	interf := make([]common.InstRef, 0)
 	seqMax := req.Inst.Seq
@@ -32,7 +32,7 @@ func (ep *EPaxos) ProcessPreAccept(req common.PreAcceptMsg) error {
 	// check if need to fill in null elements in the Pending slice
 	pendingLen := len(ep.array[req.Id.Replica].Pending)
 	if pendingLen >= int(req.Id.Inst) {
-		fmt.Println("Pending array is erroneously wrong")
+		log.Println("Pending array is erroneously wrong")
 	} else if pendingLen < int(req.Id.Inst)-1 {
 		// if too short, add nil elements
 		for i := pendingLen; i < int(req.Id.Inst)-1; i++ {
@@ -50,22 +50,31 @@ func (ep *EPaxos) ProcessPreAccept(req common.PreAcceptMsg) error {
 	}
 	ep.rpc[req.Id.Replica] <- sendMsg
 	if ep.verbose {
-		fmt.Printf("Auditor %d replied PreAcceptOKMsg!\n", ep.self)
+		log.Printf("Auditor %d replied PreAcceptOKMsg!", ep.self)
 	}
-	return nil
 }
 
-func (ep *EPaxos) ProcessAccept(req common.AcceptMsg) error {
+func (ep *EPaxos) ProcessAccept(req common.AcceptMsg) {
 	ep.mu.Lock()
 	ep.array[req.Id.Replica].Pending[req.Id.Inst] = &StatefulInst{inst: req.Inst, state: Accepted}
 	ep.mu.Unlock()
 	ep.rpc[req.Id.Replica] <- common.AcceptOKMsg{Id: req.Id, Inst: req.Inst, Sender: ep.self}
-	return nil
 }
 
-func (ep *EPaxos) ProcessCommit(req common.CommitMsg) error {
+func (ep *EPaxos) ProcessCommit(req common.CommitMsg) {
 	ep.mu.Lock()
 	ep.array[req.Id.Replica].Pending[req.Id.Inst] = &StatefulInst{inst: req.Inst, state: Committed}
 	ep.mu.Unlock()
-	return nil
+}
+
+func (ep *EPaxos) ProcessPrepare(req common.PrepareMsg) {
+	// TODO
+}
+
+func (ep *EPaxos) ProcessTryPreAccept(req common.TryPreAcceptMsg) {
+	// TODO
+}
+
+func (ep *EPaxos) ProcessTryPreAcceptOK(req common.TryPreAcceptOKMsg) {
+	// TODO
 }

@@ -67,19 +67,19 @@ epaxos/server/leader.go:
 
 - func (ep *EPaxos) ProcessRequest(req RequestMsg) (RequestOKMsg, error)
 - func (ep *EPaxos) ProcessRequestAndRead(req RequestAndReadMsg) (RequestAndReadOKMsg, error)
-- func (ep *EPaxos) ProcessPreAcceptOK(req PreAcceptMsgOK) error
-- func (ep *EPaxos) ProcessAcceptOK(req PreAcceptMsgOK) error
+- func (ep *EPaxos) ProcessPreAcceptOK(req PreAcceptMsgOK)
+- func (ep *EPaxos) ProcessAcceptOK(req PreAcceptMsgOK)
 - ...
 
 epaxos/server/auditor.go:
 
-- func (ep *EPaxos) ProcessPreAccept(req PreAcceptMsg) error
+- func (ep *EPaxos) ProcessPreAccept(req PreAcceptMsg)
 - ...
 
 epaxos/server/persister.go:
 
-- func (ep *EPaxos) AppendLog(cmd *Command) error
-- func (ep *EPaxos) RecoverFromLog() error
+- func (ep *EPaxos) AppendLog(cmd *Command)
+- func (ep *EPaxos) RecoverFromLog()
 
 epaxos/server/rpc.go:
 

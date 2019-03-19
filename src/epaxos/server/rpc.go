@@ -116,6 +116,24 @@ func (ep *EPaxos) processUdp(msg interface{}, addr *net.UDPAddr) {
 		}
 	}
 	switch m := msg.(type) {
+	case common.PreAcceptMsg:
+		go ep.ProcessPreAccept(m)
+	case common.PreAcceptOKMsg:
+		go ep.ProcessPreAcceptOK(m)
+	case common.AcceptMsg:
+		go ep.ProcessAccept(m)
+	case common.AcceptOKMsg:
+		go ep.ProcessAcceptOK(m)
+	case common.CommitMsg:
+		go ep.ProcessCommit(m)
+	case common.PrepareMsg:
+		go ep.ProcessPrepare(m)
+	case common.PrepareOKMsg:
+		go ep.ProcessPrepareOK(m)
+	case common.TryPreAcceptMsg:
+		go ep.ProcessTryPreAccept(m)
+	case common.TryPreAcceptOKMsg:
+		go ep.ProcessTryPreAcceptOK(m)
 	case common.KeepMsg:
 		go func() {
 			log.Printf("Probe: Got KeepMsg %d, will reply", m.MId)
@@ -124,7 +142,6 @@ func (ep *EPaxos) processUdp(msg interface{}, addr *net.UDPAddr) {
 				log.Println(err)
 			}
 		}()
-		return
 	case common.RequestMsg:
 		go func() {
 			r, err := ep.ProcessRequest(m)
@@ -138,7 +155,6 @@ func (ep *EPaxos) processUdp(msg interface{}, addr *net.UDPAddr) {
 				log.Println(err)
 			}
 		}()
-		return
 	case common.RequestAndReadMsg:
 		go func() {
 			r, err := ep.ProcessRequestAndRead(m)
@@ -152,7 +168,6 @@ func (ep *EPaxos) processUdp(msg interface{}, addr *net.UDPAddr) {
 				log.Println(err)
 			}
 		}()
-		return
 	case common.ProbeReqMsg:
 		go func() {
 			err := ep.sendProbe(m.Replica)
@@ -169,10 +184,9 @@ func (ep *EPaxos) processUdp(msg interface{}, addr *net.UDPAddr) {
 				log.Println(err)
 			}
 		}()
-		return
 	case common.ProbeMsg:
 		go ep.recvProbe(&m)
-		return
+	default:
+		log.Println("Unsupported msg type")
 	}
-	*ep.inbound <- msg
 }

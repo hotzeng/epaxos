@@ -73,16 +73,24 @@ func (ep *EPaxos) RpcRequest(req common.RequestMsg, res *common.RequestOKMsg) er
 	return nil
 }
 
-func (ep *EPaxos) ProcessPreAcceptOK(req common.PreAcceptOKMsg) error {
+func (ep *EPaxos) ProcessPreAcceptOK(req common.PreAcceptOKMsg) {
+	if ep.verbose {
+		log.Printf("EPaxos.ProcessPreAcceptOK start %v", req)
+	}
 	instId := req.Id.Inst
 	ep.innerChan[instId] <- req
-	return nil
+	if ep.verbose {
+		log.Printf("EPaxos.ProcessPreAcceptOK done %v", req)
+	}
 }
 
-func (ep *EPaxos) ProcessAcceptOK(req common.AcceptOKMsg) error {
+func (ep *EPaxos) ProcessAcceptOK(req common.AcceptOKMsg) {
 	instId := req.Id.Inst
 	ep.innerChan[instId] <- req
-	return nil
+}
+
+func (ep *EPaxos) ProcessPrepareOK(req common.PrepareOKMsg) {
+	// TODO
 }
 
 // help func to check the interference between two commands
@@ -123,13 +131,14 @@ func compareMerge(dep1 *[]common.InstRef, dep2 []common.InstRef) bool { // retur
 // start Instance state machine after receiving a request from client
 func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Command, innerChan chan interface{}) {
 	// ism abbreviated to instance state machine
-	ism := &instStateMachine{}
-	ism.self = instId
-	ism.innerChan = innerChan
-	ism.state = Start // starting from idle state, send preaccept to F
-	ism.preAcceptNo = 0
-	ism.chooseFast = true
-	ism.preAcceptBook = make(map[common.ReplicaID]bool)
+	ism := instStateMachine{
+		self: instId,
+		innerChan: innerChan,
+		state: Start,// starting from idle state, send preaccept to F
+		preAcceptNo: 0,
+		chooseFast: false,
+		preAcceptBook:make(map[common.ReplicaID]bool),
+	}
 	var paMsg common.PreAcceptMsg
 	var aMsg common.AcceptMsg
 
@@ -239,7 +248,7 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 						}
 					}
 				}
-			case <-time.After(time.Millisecond * time.Duration(100)):
+			case <-time.After(ep.timeout):
 				// If not received enough OK msg, re-multicase
 				if ism.preAcceptNo > 0 {
 					//F := math.Floor(float64(ep.peers) / 2)
@@ -269,7 +278,7 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 						log.Printf("Leader %d received enough Accepted Msg!", ep.self)
 					}
 				}
-			case <-time.After(time.Millisecond * time.Duration(100)):
+			case <-time.After(ep.timeout):
 				// If not received enough OK msg, re-multicase
 				if ism.acceptNo > 0 {
 					F := math.Floor(float64(ep.peers) / 2)
