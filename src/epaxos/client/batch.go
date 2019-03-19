@@ -136,9 +136,9 @@ options:
 		rawmsg := common.RequestMsg{
 			MId: mid,
 			Cmd: common.Command{
-				Cmd:   common.CmdPut,
-				Key:   common.Key(kid),
-				Value: common.Value(mid),
+				CmdType: common.CmdPut,
+				Key:     common.Key(kid),
+				Value:   common.Value(mid),
 			},
 		}
 		ch := make(chan common.RequestOKMsg)

@@ -47,9 +47,9 @@ options:
 	ep.rpc[server] <- common.RequestMsg{
 		MId: rnd,
 		Cmd: common.Command{
-			Cmd:   common.CmdPut,
-			Key:   key,
-			Value: val,
+			CmdType: common.CmdPut,
+			Key:     key,
+			Value:   val,
 		},
 	}
 	if verbose {
@@ -127,9 +127,9 @@ options:
 	ep.rpc[server] <- common.RequestAndReadMsg{
 		MId: rnd,
 		Cmd: common.Command{
-			Cmd:   cmd,
-			Key:   key,
-			Value: val,
+			CmdType: cmd,
+			Key:     key,
+			Value:   val,
 		},
 	}
 	if verbose {

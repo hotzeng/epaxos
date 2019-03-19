@@ -65,15 +65,11 @@ type InstanceState struct {
 
 	state InstState
 }
-type LastInstanceID struct {
-	InstanceID common.InstanceID
-	mu         sync.Mutex
-}
 
 type EPaxos struct {
 	verbose  bool
 	self     common.ReplicaID
-	lastInst LastInstanceID
+	lastInst common.InstanceID
 	array    []*InstList // one InstList per replica
 	data     map[common.Key]common.Value
 	probesL  sync.Mutex
@@ -81,11 +77,15 @@ type EPaxos struct {
 	udp      *net.UDPConn
 	rpc      []chan interface{}
 	peers    int64 // number of peers, including itself
+	mu       sync.Mutex
 
 	// records which channel is allocated for each instance
 	inst2Chan map[common.InstanceID]ChannelID
-	chanHead  chanPointer
-	chanTail  chanPointer
+	//chanHead  chanPointer
+	//chanTail  chanPointer
+
+	// bitmap for channels
+	freeChan map[ChannelID]bool // true means not available
 
 	// channels for Instance state machines
 	innerChan []chan interface{}
@@ -146,8 +146,6 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 	ep.data = make(map[common.Key]common.Value)
 	ep.peers = nrep
 	ep.inst2Chan = make(map[common.InstanceID]ChannelID)
-	ep.chanHead = chanPointer{pointer: 0}
-	ep.chanTail = chanPointer{pointer: 0}
 
 	ep.innerChan = make([]chan interface{}, CHAN_MAX)
 	return ep

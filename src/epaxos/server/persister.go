@@ -32,7 +32,7 @@ func (ep *EPaxos) recoverFromLog() error {
 	if err != nil {
 		return err
 	}
-	ep.lastInst.InstanceID = 0
+	ep.lastInst = 0
 	ep.data = make(map[common.Key]common.Value)
 	cmd := &common.Command{}
 	for {
@@ -44,7 +44,7 @@ func (ep *EPaxos) recoverFromLog() error {
 			return err
 		}
 		lst.Offset++
-		ep.lastInst.InstanceID++
+		ep.lastInst++
 		if cmd.CmdType == common.CmdPut {
 			ep.data[cmd.Key] = cmd.Value
 		}
