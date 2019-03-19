@@ -8,4 +8,4 @@ FROM alpine:latest
 COPY --from=0 /go/bin/server /go/bin/client /root/
 WORKDIR /root/
 CMD ["/root/server"]
-EXPOSE 23333/udp
+EXPOSE 23330/udp

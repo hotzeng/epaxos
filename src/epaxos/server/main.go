@@ -103,6 +103,7 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 	}
 	ep := new(EPaxos)
 	ep.verbose = common.GetEnv("EPAXOS_DEBUG", "TRUE") == "TRUE"
+	log.Printf("I'm #%d, total %d replicas", rep, nrep)
 	ep.self = rep
 	ep.array = make([]*InstList, nrep)
 	ep.rpc = make([]chan interface{}, nrep)
@@ -123,7 +124,7 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 		ep.rpc[i] = make(chan interface{}, buff)
 	}
 	ep.inbound = &ep.rpc[ep.self]
-	endpoint := common.GetEnv("EPAXOS_LISTEN", "0.0.0.0:23333")
+	endpoint := common.GetEnv("EPAXOS_LISTEN", "0.0.0.0:23330")
 	addr, err := net.ResolveUDPAddr("udp", endpoint)
 	if err != nil {
 		log.Println(err)

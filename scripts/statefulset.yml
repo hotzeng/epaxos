@@ -21,10 +21,10 @@ spec:
         image: b1f6c1c4/epaxos:latest
         imagePullPolicy: Always
         ports:
-        - containerPort: 23333
+        - containerPort: 23330
           name: server-server
           protocol: UDP
-        - containerPort: 23333
+        - containerPort: 23330
           name: client-server
           protocol: TCP
         # resources:
@@ -46,7 +46,7 @@ spec:
           - name: EPAXOS_DEBUG
             value: "FALSE"
           - name: EPAXOS_LISTEN
-            value: "0.0.0.0:23333"
+            value: "0.0.0.0:23330"
           - name: EPAXOS_NREPLICAS
             valueFrom:
               fieldRef:
@@ -54,7 +54,7 @@ spec:
           - name: EPAXOS_SERVERS_FMT_BIAS
             value: "0"
           - name: EPAXOS_SERVERS_FMT
-            value: "epaxos-%d.epaxos.default.svc.cluster.local:23333"
+            value: "epaxos-%d.epaxos.default.svc.cluster.local:23330"
           - name: EPAXOS_DATA_PREFIX
             value: "/data/epaxos/data-"
         # readinessProbe:

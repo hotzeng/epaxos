@@ -19,11 +19,11 @@ func (ep *EPaxos) makeMulticast(msg interface{}, nrep int64) []common.ReplicaID 
 }
 
 func (ep *EPaxos) forkUdp() error {
-	bias, err := strconv.ParseInt(common.GetEnv("EPAXOS_SERVERS_FMT_BIAS", "1"), 10, 64)
+	bias, err := strconv.ParseInt(common.GetEnv("EPAXOS_SERVERS_FMT_BIAS", "0"), 10, 64)
 	if err != nil {
 		return err
 	}
-	tmp := common.GetEnv("EPAXOS_SERVERS_FMT", "127.0.0.%d:23333")
+	tmp := common.GetEnv("EPAXOS_SERVERS_FMT", "localhost:2333%d")
 	for i, ch := range ep.rpc {
 		if common.ReplicaID(i) != ep.self {
 			id := common.ReplicaID(i)

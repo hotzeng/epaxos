@@ -82,6 +82,10 @@ loop1:
 		}
 	}
 
+	if verbose {
+		log.Printf("Mid probeOne %d", id)
+	}
+
 	msgs := make(map[int64]bool)
 	for i := int64(0); i < configEPaxos.NReps; i++ {
 		id2 := common.ReplicaID(i)
@@ -102,8 +106,10 @@ loop1:
 		<-time.After(67 * time.Millisecond)
 	}
 	good := true
-loop2:
 	for {
+		if len(msgs) == 0 {
+			break
+		}
 		select {
 		case msg := <-ep.inbound[id]:
 			if m, ok := msg.(common.ProbeReqMsg); ok {
@@ -113,9 +119,6 @@ loop2:
 				}
 				if _, ok := msgs[m.MId]; ok {
 					delete(msgs, m.MId)
-					if len(msgs) == 0 {
-						break loop2
-					}
 				}
 			}
 		case <-time.After(configEPaxos.TimeOut):

@@ -7,6 +7,6 @@ metadata:
 spec:
   clusterIP: None
   ports:
-  - port: 23333
+  - port: 23330
   selector:
     app: epaxos

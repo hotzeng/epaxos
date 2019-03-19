@@ -41,14 +41,14 @@ EOF
     restart: always
     environment:
       EPAXOS_DEBUG: "TRUE"
-      EPAXOS_LISTEN: "0.0.0.0:23333"
+      EPAXOS_LISTEN: "0.0.0.0:23330"
       EPAXOS_NREPLICAS: "$NREPS"
       EPAXOS_REPLICA_ID: "$I"
       EPAXOS_SERVERS_FMT_BIAS: "0"
-      EPAXOS_SERVERS_FMT: "epaxos-server-%d:23333"
+      EPAXOS_SERVERS_FMT: "epaxos-server-%d:23330"
       EPAXOS_DATA_PREFIX: "/data/epaxos/data-"
     ports:
-      - "$((23330+$I)):23333/udp"
+      - "$((23330+$I)):23330/udp"
     volumes:
       - ./data/data-$I:/data/epaxos
     networks:

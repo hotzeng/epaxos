@@ -1,4 +1,4 @@
 FROM golang:1.12
 COPY . /go/bin/
 CMD ["/go/bin/server"]
-EXPOSE 23333/udp
+EXPOSE 23330/udp
