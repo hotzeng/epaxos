@@ -3,6 +3,7 @@ package main
 import (
 	"epaxos/common"
 	"errors"
+	"fmt"
 	"log"
 	"math"
 	"time"
@@ -55,6 +56,9 @@ func (ep *EPaxos) RpcRequest(req common.RequestMsg, res *common.RequestOKMsg) er
 	ep.freeChan[localChan] = true
 	ep.mu.Unlock()
 
+	if ep.verbose == true {
+		fmt.Printf("Leader %d received request!\n", ep.self)
+	}
 	go ep.startInstanceState(localInst, req.Cmd, ep.innerChan[localChan])
 
 	for {
@@ -135,6 +139,9 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 	for {
 		switch ism.state {
 		case Start:
+			if ep.verbose == true {
+				fmt.Printf("Leader %d in Start Phase\n", ep.self)
+			}
 			deps := make([]common.InstRef, 0)
 			seqMax := common.Sequence(0)
 			ep.mu.Lock()
@@ -155,21 +162,32 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 			inst.Seq = seq
 			inst.Deps = deps
 			// TODO: assign NDeps
-			ep.array[ep.self].Pending[instId] = &StatefulInst{inst: *inst, state: PreAccepted}
+			//ep.array[ep.self].Pending[instId] = &StatefulInst{inst: *inst, state: PreAccepted}
+			ep.array[ep.self].Pending = append(ep.array[ep.self].Pending, &StatefulInst{inst: *inst, state: PreAccepted})
+			if len(ep.array[ep.self].Pending) != int(instId) {
+				fmt.Printf("Length of Instructions not correct!")
+			}
 			ep.mu.Unlock()
 			ism.seqOK = seq
 			ism.depOK = deps
 
 			// send PreAccept to all other replicas in F
-			F := math.Floor(float64(ep.peers) / 2)
+			//F := math.Floor(float64(ep.peers) / 2)
+			F := ep.peers
 			paMsg.Inst = *inst
 			paMsg.Id = common.InstRef{ep.self, instId}
 			ism.FQuorum = ep.makeMulticast(paMsg, int64(F-1))
+			if ep.verbose == true {
+				fmt.Printf("Leader %d finished MultiCast for PreAccept\n", ep.self)
+			}
 			ism.preAcceptNo = int(F - 1)
 			ism.state = PreAccepted
 
 		case PreAccepted: // waiting for PreAccepOKMsg
 			// wait for msg non-blockingly
+			if ep.verbose == true {
+				fmt.Printf("Leader %d in PreAccepted Phase\n", ep.self)
+			}
 			select {
 			case innerMsg := <-ism.innerChan:
 				if okMsg, ok := innerMsg.(common.PreAcceptOKMsg); ok == true {
@@ -193,8 +211,15 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 						ism.chooseFast = false
 					}
 					if ism.preAcceptNo == 0 {
+						if ep.verbose == true {
+							fmt.Printf("Leader %d received enough PreAccept Msg\n", ep.self)
+						}
 						if ism.chooseFast == true {
 							ism.state = Committed
+							if ep.verbose == true {
+								fmt.Printf("Leader %d choose Fast Path\n", ep.self)
+							}
+
 						} else {
 							ism.state = Accepted
 							ism.acceptNo = int(math.Floor(float64(ep.peers) / 2))
@@ -202,25 +227,35 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 							inst.Cmd = cmd
 							inst.Seq = ism.seqOK
 							inst.Deps = ism.depOK
-							ep.array[ep.self].Pending[instId] = &StatefulInst{inst: *inst, state: Accepted}
+							ep.array[ep.self].Pending[instId-1] = &StatefulInst{inst: *inst, state: Accepted}
 							// send accepted msg to replicas
 							aMsg.Id = common.InstRef{Replica: ep.self, Inst: instId}
 							aMsg.Inst = *inst
 							ism.FQuorum = ep.makeMulticast(aMsg, int64(math.Floor(float64(ep.peers)/2))) // TODO: change the number of Multicast for faster response
+							if ep.verbose == true {
+								fmt.Printf("Leader %d finished MultiCase for Accept\n", ep.self)
+							}
 						}
 					}
 				}
 			case <-time.After(time.Millisecond * time.Duration(100)):
 				// If not received enough OK msg, re-multicase
 				if ism.preAcceptNo > 0 {
-					F := math.Floor(float64(ep.peers) / 2)
+					//F := math.Floor(float64(ep.peers) / 2)
+					F := ep.peers
 					ism.FQuorum = ep.makeMulticast(paMsg, int64(F-1))
 					ism.preAcceptNo = int(F - 1)
 					ism.preAcceptBook = make(map[common.ReplicaID]bool)
 				}
+				if ep.verbose == true {
+					fmt.Printf("Time out! Leader %d re-send MultiCast for PreAccept Msg!\n", ep.self)
+				}
 			}
 
 		case Accepted:
+			if ep.verbose == true {
+				fmt.Printf("Leader %d in Accepted Phase!\n", ep.self)
+			}
 			select {
 			case innerMsg := <-ism.innerChan:
 				ism.acceptNo--
@@ -229,6 +264,9 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 				}
 				if ism.acceptNo == 0 {
 					ism.state = Committed
+					if ep.verbose == true {
+						fmt.Printf("Leader %d received enough Accepted Msg!\n", ep.self)
+					}
 				}
 			case <-time.After(time.Millisecond * time.Duration(100)):
 				// If not received enough OK msg, re-multicase
@@ -237,14 +275,20 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 					ism.FQuorum = ep.makeMulticast(aMsg, int64(F-1))
 					ism.acceptNo = int(math.Floor(float64(ep.peers) / 2))
 				}
+				if ep.verbose == true {
+					fmt.Printf("Time out! Leader %d re-send MultiCast for Accept Msg!\n", ep.self)
+				}
 			}
 
 		case Committed:
+			if ep.verbose == true {
+				fmt.Printf("Leader %d in Committed Phase!\n", ep.self)
+			}
 			inst := &common.Instance{}
 			inst.Cmd = cmd
 			inst.Seq = ism.seqOK
 			inst.Deps = ism.depOK
-			ep.array[ep.self].Pending[instId] = &StatefulInst{inst: *inst, state: Committed}
+			ep.array[ep.self].Pending[instId-1] = &StatefulInst{inst: *inst, state: Committed}
 			// send commit msg to replicas
 			sendMsg := &common.CommitMsg{}
 			sendMsg.Id = common.InstRef{Replica: ep.self, Inst: instId}

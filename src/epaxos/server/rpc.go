@@ -11,9 +11,19 @@ import (
 
 func (ep *EPaxos) makeMulticast(msg interface{}, nrep int64) []common.ReplicaID {
 	var res []common.ReplicaID
+	if ep.verbose == false {
+		fmt.Printf("enter makeMulticast\n")
+	}
 	for i := int64(0); i < nrep; i++ {
+		if i == int64(ep.self) {
+			nrep++
+			continue
+		}
 		res = append(res, common.ReplicaID(i))
 		ep.rpc[i] <- msg
+		if ep.verbose == false {
+			fmt.Printf("msg send to ep.rpc[%d]\n", i)
+		}
 	}
 	return res
 }
