@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"reflect"
 )
 
 func (ep *EPaxosCluster) forkUdp() error {
@@ -21,15 +22,21 @@ func (ep *EPaxosCluster) forkUdp() error {
 		if err != nil {
 			return err
 		}
-		go ep.writeUdp(conn, ch)
+		id := common.ReplicaID(i)
+		go ep.writeUdp(id, conn, ch)
 		go ep.readUdp(conn, ep.inbound[i])
 	}
 	return nil
 }
 
-func (ep *EPaxosCluster) writeUdp(conn *net.UDPConn, ch chan interface{}) error {
+func (ep *EPaxosCluster) writeUdp(id common.ReplicaID, conn *net.UDPConn, ch chan interface{}) error {
 	for {
-		buf, err := common.Pack(<-ch)
+		msg := <-ch
+		if configEPaxos.Verbose {
+			t := reflect.TypeOf(msg)
+			log.Printf("--> #%02d  %s:%+v", id, t, msg)
+		}
+		buf, err := common.Pack(msg)
 		if err != nil {
 			log.Println(err)
 			continue
@@ -45,7 +52,7 @@ func (ep *EPaxosCluster) writeUdp(conn *net.UDPConn, ch chan interface{}) error 
 func (ep *EPaxosCluster) readUdp(conn *net.UDPConn, ch chan interface{}) error {
 	buf := make([]byte, 65536)
 	for {
-		n, err := conn.Read(buf)
+		n, addr, err := conn.ReadFromUDP(buf)
 		if err != nil {
 			return err
 		}
@@ -53,6 +60,10 @@ func (ep *EPaxosCluster) readUdp(conn *net.UDPConn, ch chan interface{}) error {
 		if err != nil {
 			log.Println(err)
 			continue
+		}
+		if configEPaxos.Verbose {
+			t := reflect.TypeOf(msg)
+			log.Printf("<-- %s  %s:%+v", addr, t, msg)
 		}
 		ch <- msg
 	}

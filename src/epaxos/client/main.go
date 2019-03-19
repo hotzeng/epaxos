@@ -14,6 +14,7 @@ import (
 var VERSION string
 
 var configEPaxos struct {
+	Verbose    bool
 	ServerFmt  string
 	ServerBias int64
 	Buffer     int64
@@ -62,6 +63,7 @@ func main() {
 
 	usage := `usage: client [options] <command> [<args>...]
 options:
+	-v, --verbose   trace every package
 	-f <fmt>        server endpoints [default: localhost:2333%d]
 	-B <bias>       server format bias [default: 0]
 	-b <buffer>     size of write buffer [default: 1024]
@@ -72,6 +74,11 @@ options:
 	args, _ := parser.ParseArgs(usage, nil, "epaxos-client version "+VERSION)
 
 	var err error
+	configEPaxos.Verbose, err = args.Bool("--verbose")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	configEPaxos.ServerFmt, err = args.String("-f")
 	if err != nil {
 		log.Fatal(err)

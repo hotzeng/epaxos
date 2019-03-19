@@ -90,75 +90,79 @@ func (ep *EPaxos) readUdp() error {
 			log.Println(err)
 			continue
 		}
-		if ep.verbose {
-			t := reflect.TypeOf(msg)
-			if m, ok := msg.(common.ServerMsg); ok {
-				log.Printf("<-- #%02d  %s:%+v", m.GetSender(), t, msg)
-			} else if m, ok := msg.(common.ClientMsg); ok {
-				log.Printf("<-- 0x%016x  %s:%+v", m.GetSender(), t, msg)
-			} else {
-				log.Printf("<-- ???%s  %s:%+v", addr, t, msg)
-			}
-		}
-		switch m := msg.(type) {
-		case common.KeepMsg:
-			go func() {
-				log.Printf("Probe: Got KeepMsg %d, will reply", m.MId)
-				err := ep.replyClient(addr, m)
-				if err != nil {
-					log.Println(err)
-				}
-			}()
-			continue
-		case common.RequestMsg:
-			go func() {
-				r, err := ep.ProcessRequest(m)
-				if err != nil {
-					log.Println(err)
-					err = ep.replyClient(addr, common.RequestOKMsg{Err: true})
-				} else {
-					err = ep.replyClient(addr, r)
-				}
-				if err != nil {
-					log.Println(err)
-				}
-			}()
-			continue
-		case common.RequestAndReadMsg:
-			go func() {
-				r, err := ep.ProcessRequestAndRead(m)
-				if err != nil {
-					log.Println(err)
-					err = ep.replyClient(addr, common.RequestAndReadOKMsg{Err: true})
-				} else {
-					err = ep.replyClient(addr, r)
-				}
-				if err != nil {
-					log.Println(err)
-				}
-			}()
-			continue
-		case common.ProbeReqMsg:
-			go func() {
-				err := ep.sendProbe(m.Replica)
-				if err != nil {
-					log.Println(err)
-					err = ep.replyClient(addr, common.ProbeReqMsg{
-						MId:     m.MId,
-						Replica: common.ReplicaID(-1),
-					})
-				} else {
-					err = ep.replyClient(addr, m)
-				}
-				if err != nil {
-					log.Println(err)
-				}
-			}()
-			continue
-		case common.ProbeMsg:
-			go ep.recvProbe(&m)
-			continue
-		}
-		*ep.inbound <- msg
+		go ep.processUdp(msg, addr)
 	}
+}
+
+func (ep *EPaxos) processUdp(msg interface{}, addr *net.UDPAddr) {
+	if ep.verbose {
+		t := reflect.TypeOf(msg)
+		if m, ok := msg.(common.ServerMsg); ok {
+			log.Printf("<-- #%02d  %s:%+v", m.GetSender(), t, msg)
+		} else if m, ok := msg.(common.ClientMsg); ok {
+			log.Printf("<-- 0x%016x  %s:%+v", m.GetSender(), t, msg)
+		} else {
+			log.Printf("<-- ???%s  %s:%+v", addr, t, msg)
+		}
+	}
+	switch m := msg.(type) {
+	case common.KeepMsg:
+		go func() {
+			log.Printf("Probe: Got KeepMsg %d, will reply", m.MId)
+			err := ep.replyClient(addr, m)
+			if err != nil {
+				log.Println(err)
+			}
+		}()
+		return
+	case common.RequestMsg:
+		go func() {
+			r, err := ep.ProcessRequest(m)
+			if err != nil {
+				log.Println(err)
+				err = ep.replyClient(addr, common.RequestOKMsg{Err: true})
+			} else {
+				err = ep.replyClient(addr, r)
+			}
+			if err != nil {
+				log.Println(err)
+			}
+		}()
+		return
+	case common.RequestAndReadMsg:
+		go func() {
+			r, err := ep.ProcessRequestAndRead(m)
+			if err != nil {
+				log.Println(err)
+				err = ep.replyClient(addr, common.RequestAndReadOKMsg{Err: true})
+			} else {
+				err = ep.replyClient(addr, r)
+			}
+			if err != nil {
+				log.Println(err)
+			}
+		}()
+		return
+	case common.ProbeReqMsg:
+		go func() {
+			err := ep.sendProbe(m.Replica)
+			if err != nil {
+				log.Println(err)
+				err = ep.replyClient(addr, common.ProbeReqMsg{
+					MId:     m.MId,
+					Replica: common.ReplicaID(-1),
+				})
+			} else {
+				err = ep.replyClient(addr, m)
+			}
+			if err != nil {
+				log.Println(err)
+			}
+		}()
+		return
+	case common.ProbeMsg:
+		go ep.recvProbe(&m)
+		return
+	}
+	*ep.inbound <- msg
 }

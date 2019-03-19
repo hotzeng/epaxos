@@ -13,10 +13,12 @@ import (
 )
 
 func (ep *EPaxosCluster) cmdProbe(argv []string) error {
-	usage := `usage: client probe [-v]
+	usage := `usage: client probe [options]
 options:
 	-h, --help
 	-v, --verbose        be verbose
+	--focus              stress each node at a time
+	--pipeline <pipe>    on-flight operations limit [default: 1024]
 `
 	args, _ := docopt.ParseArgs(usage, argv, "epaxos-client version "+VERSION)
 
@@ -25,10 +27,20 @@ options:
 		return err
 	}
 
+	focus, err := args.Bool("--focus")
+	if err != nil {
+		return err
+	}
+
+	pipe, err := args.Int("--pipeline")
+	if err != nil {
+		return err
+	}
+
 	if verbose {
 		log.Printf("Start probeAll for %d", len(ep.rpc))
 	}
-	sem := semaphore.NewWeighted(int64(2))
+	sem := semaphore.NewWeighted(int64(pipe))
 	ctx := context.TODO()
 	var wg sync.WaitGroup
 	wg.Add(len(ep.rpc))
@@ -43,7 +55,7 @@ options:
 				return
 			}
 			defer sem.Release(1)
-			err := ep.probeOne(verbose, id)
+			err := ep.probeOne(verbose, focus, id)
 			if err != nil {
 				log.Println(err)
 				good = false
@@ -60,7 +72,7 @@ options:
 	return nil
 }
 
-func (ep *EPaxosCluster) probeOne(verbose bool, id common.ReplicaID) error {
+func (ep *EPaxosCluster) probeOne(verbose, focus bool, id common.ReplicaID) error {
 	if verbose {
 		log.Printf("Start probeOne %d", id)
 	}
@@ -88,7 +100,12 @@ loop1:
 
 	msgs := make(map[int64]bool)
 	for i := int64(0); i < configEPaxos.NReps; i++ {
-		id2 := common.ReplicaID(i)
+		var id2 common.ReplicaID
+		if focus {
+			id2 = common.ReplicaID(i)
+		} else {
+			id2 = common.ReplicaID((int64(id) + i) % configEPaxos.NReps)
+		}
 		if id == id2 {
 			continue
 		}
@@ -103,7 +120,6 @@ loop1:
 			MId:     rnd,
 			Replica: id2,
 		}
-		<-time.After(67 * time.Millisecond)
 	}
 	good := true
 	for {

@@ -101,6 +101,16 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 		log.Println(err)
 		return nil
 	}
+	rbuff, err := strconv.ParseInt(common.GetEnv("EPAXOS_UDP_BUFFER_READ", "26214400"), 10, 64)
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
+	wbuff, err := strconv.ParseInt(common.GetEnv("EPAXOS_UDP_BUFFER_WRITE", "1048576"), 10, 64)
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
 	ep := new(EPaxos)
 	ep.verbose = common.GetEnv("EPAXOS_DEBUG", "TRUE") == "TRUE"
 	log.Printf("I'm #%d, total %d replicas", rep, nrep)
@@ -132,7 +142,8 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 	}
 	log.Printf("ListenUDP on %s\n", endpoint)
 	ep.udp, err = net.ListenUDP("udp", addr)
-	ep.udp.SetWriteBuffer(0)
+	ep.udp.SetReadBuffer(int(rbuff))
+	ep.udp.SetWriteBuffer(int(wbuff))
 	if err != nil {
 		log.Println(err)
 		return nil
@@ -158,7 +169,7 @@ type logWriter struct {
 
 func (writer *logWriter) Write(bytes []byte) (int, error) {
 	return fmt.Printf(
-		"%s #%d %s",
+		"%s #%02d %s",
 		time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
 		writer.Id,
 		string(bytes),
