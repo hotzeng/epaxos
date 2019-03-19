@@ -1,6 +1,8 @@
 FILES=$(shell find src/ -type f -name '*')
 LDFLAGS=-X main.VERSION=$$(cat VERSION)
 
+.PHONY: all debug dist FORCE docker clean dist-clean data-clean fmt
+
 all: bin/server bin/client
 
 bin/server: $(FILES) VERSION
@@ -27,3 +29,12 @@ docker:
         -installsuffix cgo \
         -ldflags "$(LDFLAGS)" \
         epaxos/server epaxos/client
+
+clean:
+	rm -rf bin/
+
+data-clean:
+	rm -rf data/
+
+fmt:
+	go fmt epaxos/common epaxos/server epaxos/client

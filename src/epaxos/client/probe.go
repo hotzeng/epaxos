@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"epaxos/common"
 	"errors"
 	"github.com/docopt/docopt-go"
+	"golang.org/x/sync/semaphore"
 	"log"
 	"math/rand"
 	"sync"
@@ -26,6 +28,8 @@ options:
 	if verbose {
 		log.Printf("Start probeAll for %d", len(ep.rpc))
 	}
+	sem := semaphore.NewWeighted(int64(2))
+	ctx := context.TODO()
 	var wg sync.WaitGroup
 	wg.Add(len(ep.rpc))
 	good := true
@@ -33,13 +37,18 @@ options:
 		id := common.ReplicaID(i)
 		go func() {
 			defer wg.Done()
+			if err := sem.Acquire(ctx, 1); err != nil {
+				log.Println(err)
+				good = false
+				return
+			}
+			defer sem.Release(1)
 			err := ep.probeOne(verbose, id)
 			if err != nil {
 				log.Println(err)
 				good = false
 			}
 		}()
-		<-time.After(47 * time.Millisecond)
 	}
 	wg.Wait()
 	if !good {

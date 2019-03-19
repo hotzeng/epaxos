@@ -62,11 +62,11 @@ func main() {
 
 	usage := `usage: client [options] <command> [<args>...]
 options:
-	-f <fmt>     server endpoints format string
-	-B <bias>    server format bias
-	-b <buffer>  size of write buffer
-	-n <nreps>   number of servers
-	-t <timeout> seconds to wait before abort [default: 5.0]
+	-f <fmt>        server endpoints [default: localhost:2333%d]
+	-B <bias>       server format bias [default: 0]
+	-b <buffer>     size of write buffer [default: 1024]
+	-n <nreps>      number of servers [default: 1]
+	-t <timeout>    seconds to wait [default: 5.0]
 `
 	parser := &docopt.Parser{OptionsFirst: true}
 	args, _ := parser.ParseArgs(usage, nil, "epaxos-client version "+VERSION)
@@ -77,25 +77,17 @@ options:
 		log.Fatal(err)
 	}
 
-	if args["-B"] == nil {
-		configEPaxos.ServerBias = 0
-	} else {
-		bias, err := args.Int("-B")
-		if err != nil {
-			log.Fatal(err)
-		}
-		configEPaxos.ServerBias = int64(bias)
+	bias, err := args.Int("-B")
+	if err != nil {
+		log.Fatal(err)
 	}
+	configEPaxos.ServerBias = int64(bias)
 
-	if args["-b"] == nil {
-		configEPaxos.Buffer = 1024
-	} else {
-		buff, err := args.Int("-b")
-		if err != nil {
-			log.Fatal(err)
-		}
-		configEPaxos.Buffer = int64(buff)
+	buff, err := args.Int("-b")
+	if err != nil {
+		log.Fatal(err)
 	}
+	configEPaxos.Buffer = int64(buff)
 
 	nreps, err := args.Int("-n")
 	if err != nil {
