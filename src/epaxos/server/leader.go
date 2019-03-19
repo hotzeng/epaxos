@@ -38,13 +38,13 @@ func (ep *EPaxos) RpcRequest(req common.RequestMsg, res *common.RequestOKMsg) er
 	ep.mu.Lock()
 	var freeChanNo ChannelID
 	for i := ChannelID(0); i < CHAN_MAX; i++ {
-		if bit, ok := ep.freeChan[i]; (bit == false && ok == true) || ok == false {
+		if bit, ok := ep.freeChan[i]; (!bit && ok) || !ok {
 			freeChanExist = true
 			freeChanNo = i
 			break
 		}
 	}
-	if freeChanExist == false {
+	if !freeChanExist {
 		return errors.New("No free channel for new instance machine")
 	}
 	ep.lastInst++
@@ -55,14 +55,14 @@ func (ep *EPaxos) RpcRequest(req common.RequestMsg, res *common.RequestOKMsg) er
 	ep.freeChan[localChan] = true
 	ep.mu.Unlock()
 
-	if ep.verbose == true {
+	if ep.verbose {
 		log.Printf("Leader %d received request!", ep.self)
 	}
 	go ep.startInstanceState(localInst, req.Cmd, ep.innerChan[localChan])
 
 	for {
 		reply, more := <-ep.innerChan[localChan]
-		if r, ok := reply.(common.RequestOKMsg); ok && r.Err == false {
+		if r, ok := reply.(common.RequestOKMsg); ok && !r.Err {
 			res.Err = false
 			ep.freeChan[localChan] = false
 			break
@@ -106,12 +106,12 @@ func compareMerge(dep1 *[]common.InstRef, dep2 []common.InstRef) bool { // retur
 				break
 			}
 		}
-		if exist == false {
+		if !exist {
 			ret = false
 			*dep1 = append(*dep1, id2)
 		}
 	}
-	if ret == false {
+	if !ret {
 		return ret
 	}
 	if len(*dep1) > len(dep2) {
@@ -138,7 +138,7 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 	for {
 		switch ism.state {
 		case Start:
-			if ep.verbose == true {
+			if ep.verbose {
 				log.Printf("Leader %d in Start Phase", ep.self)
 			}
 			deps := make([]common.InstRef, 0)
@@ -177,7 +177,7 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 			paMsg.Inst = inst
 			paMsg.Id = common.InstRef{Replica: ep.self, Inst: instId}
 			ism.FQuorum = ep.makeMulticast(paMsg, int64(F-1))
-			if ep.verbose == true {
+			if ep.verbose {
 				log.Printf("Leader %d finished MultiCast for PreAccept", ep.self)
 			}
 			ism.preAcceptNo = int(F - 1)
@@ -185,19 +185,19 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 
 		case PreAccepted: // waiting for PreAccepOKMsg
 			// wait for msg non-blockingly
-			if ep.verbose == true {
+			if ep.verbose {
 				log.Printf("Leader %d in PreAccepted Phase", ep.self)
 			}
 			select {
 			case innerMsg := <-ism.innerChan:
-				if okMsg, ok := innerMsg.(common.PreAcceptOKMsg); ok == true {
+				if okMsg, ok := innerMsg.(common.PreAcceptOKMsg); ok {
 					// check instId is correct
 					if okMsg.Id.Inst != ism.self {
 						// TODO: change this fatal command
 						log.Fatal("Wrong inner msg!")
 					}
 					// if the msg has been received from the sender, break
-					if bit, ok := ism.preAcceptBook[okMsg.Sender]; bit == true && ok {
+					if bit, ok := ism.preAcceptBook[okMsg.Sender]; bit && ok {
 						break
 					}
 					ism.preAcceptBook[okMsg.Sender] = true
@@ -207,16 +207,16 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 						ism.chooseFast = false
 						ism.seqOK = okMsg.Inst.Seq
 					}
-					if compareMerge(&ism.depOK, okMsg.Inst.Deps) == false {
+					if !compareMerge(&ism.depOK, okMsg.Inst.Deps) {
 						ism.chooseFast = false
 					}
 					if ism.preAcceptNo == 0 {
-						if ep.verbose == true {
+						if ep.verbose {
 							log.Printf("Leader %d received enough PreAccept Msg", ep.self)
 						}
-						if ism.chooseFast == true {
+						if ism.chooseFast {
 							ism.state = Committed
-							if ep.verbose == true {
+							if ep.verbose {
 								log.Printf("Leader %d choose Fast Path", ep.self)
 							}
 
@@ -233,7 +233,7 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 							aMsg.Id = common.InstRef{Replica: ep.self, Inst: instId}
 							aMsg.Inst = inst
 							ism.FQuorum = ep.makeMulticast(aMsg, int64(math.Floor(float64(ep.peers)/2))) // TODO: change the number of Multicast for faster response
-							if ep.verbose == true {
+							if ep.verbose {
 								log.Printf("Leader %d finished MultiCase for Accept", ep.self)
 							}
 						}
@@ -248,13 +248,13 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 					ism.preAcceptNo = int(F - 1)
 					ism.preAcceptBook = make(map[common.ReplicaID]bool)
 				}
-				if ep.verbose == true {
+				if ep.verbose {
 					log.Printf("Time out! Leader %d re-send MultiCast for PreAccept Msg!", ep.self)
 				}
 			}
 
 		case Accepted:
-			if ep.verbose == true {
+			if ep.verbose {
 				log.Printf("Leader %d in Accepted Phase!", ep.self)
 			}
 			select {
@@ -265,7 +265,7 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 				}
 				if ism.acceptNo == 0 {
 					ism.state = Committed
-					if ep.verbose == true {
+					if ep.verbose {
 						log.Printf("Leader %d received enough Accepted Msg!", ep.self)
 					}
 				}
@@ -276,13 +276,13 @@ func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Comman
 					ism.FQuorum = ep.makeMulticast(aMsg, int64(F-1))
 					ism.acceptNo = int(math.Floor(float64(ep.peers) / 2))
 				}
-				if ep.verbose == true {
+				if ep.verbose {
 					log.Printf("Time out! Leader %d re-send MultiCast for Accept Msg!", ep.self)
 				}
 			}
 
 		case Committed:
-			if ep.verbose == true {
+			if ep.verbose {
 				log.Printf("Leader %d in Committed Phase!", ep.self)
 			}
 			inst := common.Instance{

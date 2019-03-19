@@ -6,7 +6,7 @@ import (
 )
 
 func (ep *EPaxos) ProcessPreAccept(req common.PreAcceptMsg) error {
-	if ep.verbose == true {
+	if ep.verbose {
 		fmt.Printf("Auditor %d received PreAcceptMsg!\n", ep.self)
 	}
 	interf := make([]common.InstRef, 0)
@@ -49,7 +49,7 @@ func (ep *EPaxos) ProcessPreAccept(req common.PreAcceptMsg) error {
 		Sender: ep.self,
 	}
 	ep.rpc[req.Id.Replica] <- sendMsg
-	if ep.verbose == true {
+	if ep.verbose {
 		fmt.Printf("Auditor %d replied PreAcceptOKMsg!\n", ep.self)
 	}
 	return nil
