@@ -32,7 +32,7 @@ type StatefulInst struct {
 }
 
 type InstList struct {
-	Mu      sync.RWMutex
+	Mu      sync.RWMutex // one lock for all fields
 	LogFile *os.File
 	Offset  common.InstanceID
 	Pending []*StatefulInst // one per InstanceID
@@ -53,9 +53,9 @@ type EPaxos struct {
 
 	ctx      context.Context     // Limiting concurrent isms
 	sem      *semaphore.Weighted // Limiting concurrent isms
-	ismsL    sync.RWMutex        // Restrict access to ep.isms and ep.lastInst
+	ismsL    sync.RWMutex        // Restrict access to ep.isms and ep.nextInst
 	isms     map[common.InstanceID]*InstStateMachine
-	lastInst common.InstanceID
+	nextInst common.InstanceID
 }
 
 func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
@@ -90,12 +90,16 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 	log.Printf("I'm #%d, total %d replicas", rep, nrep)
 	ep.self = rep
 	ep.timeout = time.Duration(to) * time.Millisecond
-	ep.lastInst = common.InstanceID(0)
 	ep.array = make([]*InstList, nrep)
 	ep.rpc = make([]chan interface{}, nrep)
 	for i := int64(0); i < nrep; i++ {
 		fileName := dir + strconv.FormatInt(i, 10) + ".dat"
-		file, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE, 0644)
+		file, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE|os.O_SYNC, 0644)
+		if err != nil {
+			log.Print(err)
+			return nil
+		}
+		stat, err := file.Stat()
 		if err != nil {
 			log.Print(err)
 			return nil
@@ -103,7 +107,7 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 		lst := &InstList{
 			Mu:      sync.RWMutex{},
 			LogFile: file,
-			Offset:  0,
+			Offset:  common.InstanceID(int64(stat.Size()) / common.COMMAND_SIZE),
 			Pending: make([]*StatefulInst, 0),
 		}
 		ep.array[i] = lst
@@ -124,11 +128,6 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 		return nil
 	}
 	ep.probes = make(map[int64]chan bool)
-	err = ep.recoverFromLog()
-	if err != nil {
-		log.Println(err)
-		return nil
-	}
 
 	ep.data = make(map[common.Key]common.Value)
 	ep.peers = nrep
@@ -136,6 +135,8 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 	ep.sem = semaphore.NewWeighted(int64(pipe))
 	ep.ctx = context.TODO()
 	ep.isms = make(map[common.InstanceID]*InstStateMachine)
+
+	ep.nextInst = ep.array[ep.self].Offset
 	return ep
 }
 

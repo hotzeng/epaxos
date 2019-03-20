@@ -14,6 +14,8 @@ const (
 	CmdPut  CmdType = 1
 )
 
+const COMMAND_SIZE int64 = 16
+
 type Command struct {
 	CmdType CmdType
 	Key     Key

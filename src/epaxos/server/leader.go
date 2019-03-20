@@ -29,10 +29,6 @@ type InstStateMachine struct {
 
 func NewInstStateMachine() *InstStateMachine {
 	ism := new(InstStateMachine)
-	ism.paChan = make(chan common.PreAcceptOKMsg)
-	ism.paBook = make(map[common.ReplicaID]bool)
-	ism.acChan = make(chan common.AcceptOKMsg)
-	ism.acBook = make(map[common.ReplicaID]bool)
 	return ism
 }
 
@@ -48,8 +44,8 @@ func (ep *EPaxos) RpcRequest(req common.RequestMsg, res *common.RequestOKMsg) er
 	ism.instId = func() common.InstanceID {
 		ep.ismsL.Lock()
 		defer ep.ismsL.Unlock()
-		instId := ep.lastInst
-		ep.lastInst++
+		instId := ep.nextInst
+		ep.nextInst++
 		ep.isms[instId] = ism
 		return instId
 	}()
@@ -73,7 +69,11 @@ func (ep *EPaxos) ProcessPreAcceptOK(req common.PreAcceptOKMsg) {
 		defer ep.ismsL.RUnlock()
 		return ep.isms[instId]
 	}()
-	ism.paChan <- req
+	if ism.paChan != nil {
+		ism.paChan <- req
+	} else {
+		log.Printf("Warning: attempt to write to nil paChan at %d", instId)
+	}
 }
 
 func (ep *EPaxos) ProcessAcceptOK(req common.AcceptOKMsg) {
@@ -83,7 +83,11 @@ func (ep *EPaxos) ProcessAcceptOK(req common.AcceptOKMsg) {
 		defer ep.ismsL.RUnlock()
 		return ep.isms[instId]
 	}()
-	ism.acChan <- req
+	if ism.acChan != nil {
+		ism.acChan <- req
+	} else {
+		log.Printf("Warning: attempt to write to nil acChan at %d", instId)
+	}
 }
 
 func (ep *EPaxos) ProcessPrepareOK(req common.PrepareOKMsg) {
@@ -138,6 +142,9 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 			oneReplica.Mu.RLock()
 			defer oneReplica.Mu.RUnlock()
 			for index2, oneInst := range oneReplica.Pending {
+				if oneInst == nil {
+					continue
+				}
 				if interfCmd(oneInst.inst.Cmd, cmd) {
 					deps = append(deps, common.InstRef{Replica: common.ReplicaID(index1), Inst: common.InstanceID(index2)})
 					if oneInst.inst.Seq > seqMax {
@@ -154,13 +161,15 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 			Seq:  seq,
 			Deps: deps,
 		},
-		state: PreAccepting,
 	}
 	ep.putAt(id, ism.obj)
 
 	// send PreAccept to all other replicas in F
 	// F := ep.peers / 2
 	F := ep.peers
+	ism.obj.state = PreAccepting
+	ism.paChan = make(chan common.PreAcceptOKMsg)
+	ism.paBook = make(map[common.ReplicaID]bool)
 	ism.paLeft = F - int64(1)
 	ism.paFast = true
 	ism.obj.state = PreAccepting
@@ -208,6 +217,8 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 				if ism.paLeft > 0 {
 					break
 				}
+				ism.paChan = nil // Prevent future dup msg
+				ism.paBook = nil
 				if ism.paFast {
 					ism.obj.state = Committing
 					if ep.verbose {
@@ -216,6 +227,8 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 					break
 				}
 				ism.obj.state = Accepting
+				ism.acChan = make(chan common.AcceptOKMsg)
+				ism.acBook = make(map[common.ReplicaID]bool)
 				ism.acLeft = ep.peers / 2
 				// send accepted msg to replicas
 				ep.makeMulticast(common.AcceptMsg{
@@ -254,6 +267,8 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 				if ism.acLeft > 0 {
 					break
 				}
+				ism.acChan = nil // Prevent future dup msg
+				ism.acBook = nil
 				ism.obj.state = Committing
 				if ep.verbose {
 					log.Printf("Leader %d received enough AcceptMsg!", ism.instId)
@@ -275,9 +290,11 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 			if ep.verbose {
 				log.Printf("Leader %d in Committing Phase!", ism.instId)
 			}
-			// TODO: dequeue
-			// TODO: blocking persister call
 			ism.obj.state = Finished
+			err := ep.appendLogs(ep.self)
+			if err != nil {
+				log.Fatalf("Fatal: Can't appendLogs: %v", err)
+			}
 			// send commit msg to replicas
 			ep.makeMulticast(common.CommitMsg{
 				Id:   id,

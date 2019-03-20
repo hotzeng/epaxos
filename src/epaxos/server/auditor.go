@@ -40,6 +40,9 @@ func (ep *EPaxos) ProcessPreAccept(req common.PreAcceptMsg) {
 			oneReplica.Mu.RLock()
 			defer oneReplica.Mu.RUnlock()
 			for index2, oneInst := range oneReplica.Pending {
+				if oneInst == nil {
+					continue
+				}
 				if interfCmd(oneInst.inst.Cmd, req.Inst.Cmd) {
 					interf = append(interf, common.InstRef{
 						Replica: common.ReplicaID(index1),
