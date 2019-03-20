@@ -3,6 +3,7 @@ package main
 import (
 	"epaxos/common"
 	"log"
+	"sync"
 	"time"
 )
 
@@ -14,6 +15,7 @@ import (
 type InstStateMachine struct {
 	instId common.InstanceID // which instID it is processing
 	obj    *StatefulInst
+	mu     sync.RWMutex // Limit access to paChan, acChan
 
 	// PreAccept phase
 	paChan chan common.PreAcceptOKMsg
@@ -28,6 +30,48 @@ type InstStateMachine struct {
 
 	// Commit phase
 	cmChan chan bool
+}
+
+func (ism *InstStateMachine) paChanMake() {
+	ism.mu.Lock()
+	defer ism.mu.Unlock()
+	ism.paChan = make(chan common.PreAcceptOKMsg)
+}
+func (ism *InstStateMachine) paChanDrop() {
+	ism.mu.Lock()
+	defer ism.mu.Unlock()
+	ism.paChan = nil
+}
+func (ism *InstStateMachine) paChanRead(timeout time.Duration) (*common.PreAcceptOKMsg, bool) {
+	ism.mu.RLock()
+	defer ism.mu.RUnlock()
+	select {
+	case msg := <-ism.paChan:
+		return &msg, true
+	case <-time.After(timeout):
+		return nil, false
+	}
+}
+
+func (ism *InstStateMachine) acChanMake() {
+	ism.mu.Lock()
+	defer ism.mu.Unlock()
+	ism.acChan = make(chan common.AcceptOKMsg)
+}
+func (ism *InstStateMachine) acChanDrop() {
+	ism.mu.Lock()
+	defer ism.mu.Unlock()
+	ism.acChan = nil
+}
+func (ism *InstStateMachine) acChanRead(timeout time.Duration) (*common.AcceptOKMsg, bool) {
+	ism.mu.RLock()
+	defer ism.mu.RUnlock()
+	select {
+	case msg := <-ism.acChan:
+		return &msg, true
+	case <-time.After(timeout):
+		return nil, false
+	}
 }
 
 func NewInstStateMachine() *InstStateMachine {
@@ -72,6 +116,8 @@ func (ep *EPaxos) ProcessPreAcceptOK(req common.PreAcceptOKMsg) {
 		defer ep.ismsL.RUnlock()
 		return ep.isms[instId]
 	}()
+	ism.mu.RLock()
+	defer ism.mu.RUnlock()
 	if ism.paChan != nil {
 		ism.paChan <- req
 	} else {
@@ -86,6 +132,8 @@ func (ep *EPaxos) ProcessAcceptOK(req common.AcceptOKMsg) {
 		defer ep.ismsL.RUnlock()
 		return ep.isms[instId]
 	}()
+	ism.mu.RLock()
+	defer ism.mu.RUnlock()
 	if ism.acChan != nil {
 		ism.acChan <- req
 	} else {
@@ -171,7 +219,7 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 	// F := ep.peers / 2
 	F := ep.peers
 	ism.obj.state = PreAccepting
-	ism.paChan = make(chan common.PreAcceptOKMsg)
+	ism.paChanMake()
 	ism.paBook = make(map[common.ReplicaID]bool)
 	ism.paLeft = F - int64(1)
 	ism.paFast = true
@@ -190,8 +238,7 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 			if ep.verbose {
 				log.Printf("Leader %d in PreAccepting Phase", ism.instId)
 			}
-			select {
-			case msg := <-ism.paChan:
+			if msg, ok := ism.paChanRead(ep.timeout); ok {
 				if ep.verbose {
 					log.Printf("Leader %d in PreAccepting Phase %d left", ism.instId, ism.paLeft)
 				}
@@ -220,7 +267,7 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 				if ism.paLeft > 0 {
 					break
 				}
-				ism.paChan = nil // Prevent future dup msg
+				ism.paChanDrop() // Prevent future dup msg
 				ism.paBook = nil
 				if ism.paFast {
 					ism.obj.state = Committing
@@ -230,7 +277,7 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 					break
 				}
 				ism.obj.state = Accepting
-				ism.acChan = make(chan common.AcceptOKMsg)
+				ism.acChanMake()
 				ism.acBook = make(map[common.ReplicaID]bool)
 				ism.acLeft = ep.peers / 2
 				// send accepted msg to replicas
@@ -241,7 +288,7 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 				if ep.verbose {
 					log.Printf("Leader %d finished MultiCase for Accept", ism.instId)
 				}
-			case <-time.After(ep.timeout):
+			} else {
 				// If not received enough OK msg, re-multicast
 				if ep.verbose {
 					log.Printf("Time out! Leader %d re-send MultiCast for PreAccept Msg!", ism.instId)
@@ -258,8 +305,7 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 			if ep.verbose {
 				log.Printf("Leader %d in Accepting Phase!", ism.instId)
 			}
-			select {
-			case msg := <-ism.acChan:
+			if msg, ok := ism.acChanRead(ep.timeout); ok {
 				// if the msg has been received from the sender, break
 				if _, ok := ism.acBook[msg.Sender]; ok {
 					log.Printf("Warning: duplicated msg from %d, ignored", msg.Sender)
@@ -270,13 +316,13 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 				if ism.acLeft > 0 {
 					break
 				}
-				ism.acChan = nil // Prevent future dup msg
+				ism.acChanDrop() // Prevent future dup msg
 				ism.acBook = nil
 				ism.obj.state = Committing
 				if ep.verbose {
 					log.Printf("Leader %d received enough AcceptMsg!", ism.instId)
 				}
-			case <-time.After(ep.timeout):
+			} else {
 				// If not received enough OK msg, re-multicast
 				if ep.verbose {
 					log.Printf("Time out! Leader %d re-send MultiCast for Accept Msg!", ism.instId)
