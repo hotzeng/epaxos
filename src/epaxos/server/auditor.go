@@ -13,25 +13,33 @@ func (ep *EPaxos) putAt(ref common.InstRef, obj *StatefulInst) {
 	}
 	my.Mu.Lock()
 	defer my.Mu.Unlock()
-	for int(my.Offset)+len(my.Pending) < id {
-		if ep.verbose {
-			log.Printf("Out-of-order append happen on %d, from %d to %d", ref.Replica, int(my.Offset)+len(my.Pending), id)
-		}
-		my.Pending = append(my.Pending, nil)
+	if ref.Inst < my.Offset {
+		log.Printf("Warning: old committeed messsage duplicated: %d.%d=%+v", ref.Replica, ref.Inst, obj)
+		return
 	}
-	if int(my.Offset)+len(my.Pending) <= id {
-		if ep.verbose {
-			log.Printf("Appending to %d, offset %d, from %d to %d", ref.Replica, my.Offset, len(my.Pending), id)
+	for {
+		ca := int(my.Offset) + len(my.Pending)
+		if ca < id {
+			if ep.verbose {
+				log.Printf("Out-of-order append happen on %d, from %d to %d: nil", ref.Replica, ca, id)
+			}
+			my.Pending = append(my.Pending, nil)
+		} else if ca == id {
+			if ep.verbose {
+				log.Printf("Appending to %d, offset %d, from %d to %d: %v", ref.Replica, my.Offset, ca, id, obj)
+			}
+			my.Pending = append(my.Pending, obj)
+			break
+		} else {
+			if ep.verbose {
+				log.Printf("Rewriting to %d, offset %d, from %d to %d: %v", ref.Replica, my.Offset, ca, id, obj)
+			}
+			my.Pending[ref.Inst-my.Offset] = obj
+			break
 		}
-		my.Pending = append(my.Pending, obj)
-	} else {
-		if ep.verbose {
-			log.Printf("Rewriting to %d, offset %d, from %d to %d", ref.Replica, my.Offset, len(my.Pending), id)
-		}
-		my.Pending[ref.Inst-my.Offset] = obj
 	}
 	if ep.verbose {
-		log.Printf("already put to #%02d.%d: %+v", ref.Replica, ref.Inst, my.Pending[ref.Inst-my.Offset])
+		log.Printf("done put to #%02d.%d: %+v", ref.Replica, ref.Inst, my.Pending[ref.Inst-my.Offset])
 	}
 }
 

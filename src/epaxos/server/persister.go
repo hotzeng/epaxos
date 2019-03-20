@@ -67,7 +67,7 @@ func (ep *EPaxos) appendLogs(rep common.ReplicaID) error {
 		my.Offset = common.InstanceID(int(my.Offset) + i)
 		my.Pending = my.Pending[i:]
 		if ep.verbose {
-			log.Printf("Done appendLogs on %d, %d persisted and new offset is %d,  still %d pending", rep, i, my.Offset, len(my.Pending))
+			log.Printf("Done appendLogs on %d, %d persisted and new offset is %d, still %d pending", rep, i, my.Offset, len(my.Pending))
 		}
 	}
 	return nil
