@@ -25,6 +25,9 @@ type InstStateMachine struct {
 	acChan chan common.AcceptOKMsg
 	acLeft int64                     // how many left
 	acBook map[common.ReplicaID]bool // which received
+
+	// Commit phase
+	cmChan chan bool
 }
 
 func NewInstStateMachine() *InstStateMachine {
@@ -291,9 +294,12 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 				log.Printf("Leader %d in Committing Phase!", ism.instId)
 			}
 			ism.obj.state = Finished
-			err := ep.appendLogs(ep.self)
-			if err != nil {
-				log.Fatalf("Fatal: Can't appendLogs: %v", err)
+			ism.cmChan = make(chan bool)
+			go ep.mustAppendLogs(ep.self)
+			// wait for persiter to finish
+			<-ism.cmChan
+			if ep.verbose {
+				log.Printf("Leader %d persisted, broadcast and return to client", ism.instId)
 			}
 			// send commit msg to replicas
 			ep.makeMulticast(common.CommitMsg{

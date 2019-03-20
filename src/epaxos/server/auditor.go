@@ -31,7 +31,7 @@ func (ep *EPaxos) putAt(ref common.InstRef, obj *StatefulInst) {
 
 func (ep *EPaxos) ProcessPreAccept(req common.PreAcceptMsg) {
 	if ep.verbose {
-		log.Printf("Auditor %d received PreAcceptMsg!", ep.self)
+		log.Printf("Auditor #%02d.%d received PreAcceptOKMsg!", req.Id.Replica, req.Id.Inst)
 	}
 	interf := make([]common.InstRef, 0)
 	seqMax := req.Inst.Seq
@@ -72,7 +72,7 @@ func (ep *EPaxos) ProcessPreAccept(req common.PreAcceptMsg) {
 		Sender: ep.self,
 	}
 	if ep.verbose {
-		log.Printf("Auditor %d replied PreAcceptOKMsg!", ep.self)
+		log.Printf("Auditor #%02d.%d replied PreAcceptOKMsg!", req.Id.Replica, req.Id.Inst)
 	}
 }
 
@@ -87,14 +87,21 @@ func (ep *EPaxos) ProcessAccept(req common.AcceptMsg) {
 		Inst:   req.Inst,
 		Sender: ep.self,
 	}
+	if ep.verbose {
+		log.Printf("Auditor #%02d.%d replied AcceptOKMsg!", req.Id.Replica, req.Id.Inst)
+	}
 }
 
 func (ep *EPaxos) ProcessCommit(req common.CommitMsg) {
 	obj := &StatefulInst{
 		inst:  req.Inst,
-		state: Committing,
+		state: Finished,
 	}
 	ep.putAt(req.Id, obj)
+	ep.mustAppendLogs(req.Id.Replica)
+	if ep.verbose {
+		log.Printf("Auditor #%02d.%d committed!", req.Id.Replica, req.Id.Inst)
+	}
 }
 
 func (ep *EPaxos) ProcessPrepare(req common.PrepareMsg) {

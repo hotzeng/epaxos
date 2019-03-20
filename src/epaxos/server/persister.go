@@ -6,10 +6,22 @@ import (
 	"log"
 )
 
+func (ep *EPaxos) mustAppendLogs(rep common.ReplicaID) {
+	err := ep.appendLogs(rep)
+	if err != nil {
+		log.Fatalf("Can't append logs: %v", err)
+	}
+}
+
 func (ep *EPaxos) appendLogs(rep common.ReplicaID) error {
 	my := ep.array[rep]
 	my.Mu.Lock()
 	defer my.Mu.Unlock()
+	self := rep == ep.self
+
+	if ep.verbose {
+		log.Printf("appendLogs on %d: offset %v, pending %v", rep, my.Offset, len(my.Pending))
+	}
 
 	file := my.LogFile
 	_, err := file.Seek(0, 2)
@@ -19,6 +31,7 @@ func (ep *EPaxos) appendLogs(rep common.ReplicaID) error {
 
 	var i int
 	for i = 0; i < len(my.Pending); i++ {
+		id := common.InstanceID(int(my.Offset) + i)
 		obj := my.Pending[i]
 		if obj == nil {
 			break
@@ -27,11 +40,19 @@ func (ep *EPaxos) appendLogs(rep common.ReplicaID) error {
 			break
 		}
 		if ep.verbose {
-			log.Printf("Persisting %d %d->%d: %v", rep, my.Offset, int(my.Offset)+i, obj.inst)
+			log.Printf("Persisting %d %d->%d: %v", rep, my.Offset, id, obj.inst)
 		}
 		err = struc.Pack(file, obj.inst.Cmd)
 		if err != nil {
 			return err
+		}
+		if self {
+			ism := func() *InstStateMachine {
+				ep.ismsL.RLock()
+				defer ep.ismsL.RUnlock()
+				return ep.isms[id]
+			}()
+			ism.cmChan <- true
 		}
 	}
 
