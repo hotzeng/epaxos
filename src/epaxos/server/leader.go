@@ -143,12 +143,12 @@ func compareMerge(dep1 *[]common.InstRef, dep2 []common.InstRef) bool { // retur
 func (ep *EPaxos) startInstanceState(instId common.InstanceID, cmd common.Command, innerChan chan interface{}) error {
 	// ism abbreviated to instance state machine
 	ism := instStateMachine{
-		self: instId,
-		innerChan: innerChan,
-		state: Start,// starting from idle state, send preaccept to F
-		preAcceptNo: 0,
-		chooseFast: false,
-		preAcceptBook:make(map[common.ReplicaID]bool),
+		self:          instId,
+		innerChan:     innerChan,
+		state:         Start, // starting from idle state, send preaccept to F
+		preAcceptNo:   0,
+		chooseFast:    false,
+		preAcceptBook: make(map[common.ReplicaID]bool),
 	}
 	var paMsg common.PreAcceptMsg
 	var aMsg common.AcceptMsg
