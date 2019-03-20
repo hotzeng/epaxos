@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"epaxos/common"
 	"fmt"
+	"golang.org/x/sync/semaphore"
 	"log"
 	"net"
 	"os"
@@ -13,81 +15,47 @@ import (
 
 var VERSION string
 
-type InstState int32
-type LeaderState int32
-type ChannelID int32
+type InstState int
 
 const (
-	CHAN_MAX = 100 // TODO: get rid of this!!!
+	Invalid      InstState = 0
+	PreAccepting InstState = 1
+	Accepting    InstState = 2
+	Committing   InstState = 3
+	Finished     InstState = 4
+	Prepare      InstState = 5
 )
-
-const (
-	PreAccepted   InstState = 0
-	PreAcceptedOK InstState = 4
-	Accepted      InstState = 1
-	Committed     InstState = 2
-	Prepare       InstState = 3
-	Idle          InstState = 5
-	Start         InstState = 6
-)
-
-type ChangeStateMsg struct {
-	success bool
-}
 
 type StatefulInst struct {
 	inst  common.Instance
 	state InstState
 }
 
-type chanPointer struct {
-	pointer ChannelID
-	mu      sync.Mutex
-}
-
 type InstList struct {
-	Mu      sync.Mutex
+	Mu      sync.RWMutex
 	LogFile *os.File
 	Offset  common.InstanceID
 	Pending []*StatefulInst // one per InstanceID
 }
 
-// the state machine for each instance
-type InstanceState struct {
-	self int
-	// channels for state transitions
-	getReq         chan bool
-	getPreAcceptOK chan bool
-	selectFastPath chan bool
-	getAcceptOK    chan bool
-
-	state InstState
-}
-
 type EPaxos struct {
-	verbose  bool
-	self     common.ReplicaID
+	verbose bool
+	self    common.ReplicaID
+	data    map[common.Key]common.Value
+	probesL sync.Mutex
+	probes  map[int64]chan bool
+	udp     *net.UDPConn
+	rpc     []chan interface{}
+	peers   int64 // number of peers, including itself
+	timeout time.Duration
+
+	array []*InstList // one InstList per replica
+
+	ctx      context.Context     // Limiting concurrent isms
+	sem      *semaphore.Weighted // Limiting concurrent isms
+	ismsL    sync.RWMutex        // Restrict access to ep.isms and ep.lastInst
+	isms     map[common.InstanceID]*InstStateMachine
 	lastInst common.InstanceID
-	array    []*InstList // one InstList per replica
-	data     map[common.Key]common.Value
-	probesL  sync.Mutex
-	probes   map[int64]chan bool
-	udp      *net.UDPConn
-	rpc      []chan interface{}
-	peers    int64 // number of peers, including itself
-	mu       sync.Mutex
-	timeout  time.Duration
-
-	// records which channel is allocated for each instance
-	inst2Chan map[common.InstanceID]ChannelID
-	//chanHead  chanPointer
-	//chanTail  chanPointer
-
-	// bitmap for channels
-	freeChan map[ChannelID]bool // true means not available
-
-	// channels for Instance state machines
-	innerChan []chan interface{}
 }
 
 func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
@@ -112,6 +80,11 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 		log.Println(err)
 		return nil
 	}
+	pipe, err := strconv.ParseInt(common.GetEnv("EPAXOS_PIPE", "512"), 10, 64)
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
 	ep := new(EPaxos)
 	ep.verbose = common.GetEnv("EPAXOS_DEBUG", "TRUE") == "TRUE"
 	log.Printf("I'm #%d, total %d replicas", rep, nrep)
@@ -128,7 +101,7 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 			return nil
 		}
 		lst := &InstList{
-			Mu:      sync.Mutex{},
+			Mu:      sync.RWMutex{},
 			LogFile: file,
 			Offset:  0,
 			Pending: make([]*StatefulInst, 0),
@@ -159,13 +132,9 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 
 	ep.data = make(map[common.Key]common.Value)
 	ep.peers = nrep
-	ep.inst2Chan = make(map[common.InstanceID]ChannelID)
-	ep.freeChan = make(map[ChannelID]bool)
 
-	ep.innerChan = make([]chan interface{}, CHAN_MAX)
-	for i := 0; i < CHAN_MAX; i++ {
-		ep.innerChan[i] = make(chan interface{}) // TODO: should we buffer there?
-	}
+	ep.sem = semaphore.NewWeighted(int64(pipe))
+	ep.ctx = context.TODO()
 	return ep
 }
 
