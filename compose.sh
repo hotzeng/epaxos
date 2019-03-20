@@ -1,5 +1,11 @@
 #!/bin/sh
 
+DEBUG="TRUE"
+if [ "$1" = "--prod" ]; then
+	DEBUG="FALSE"
+	shift
+fi
+
 NREPS="$1"
 if [ -z "$NREPS" ]; then
     echo "Usage: ./compose.sh <nreps> <args>..."
@@ -11,12 +17,20 @@ if [ "$NREPS" -gt "10" ]; then
 fi
 shift
 
+if [ "$1" == "--prod" ]; then
+	DEBUG="FALSE"
+	shift
+fi
+
 VALID=
 if [ -f "$0" ] && [ -f "./docker-compose.yml" ] && [ "$0" -ot "./docker-compose.yml" ]; then
     OLD=$(docker-compose config --services | wc -l)
     if [ "$NREPS" = "$OLD" ]; then
-        echo "Config file good"
-        VALID=1
+		OLD_DEBUG=$(grep 'EPAXOS_DBEUG: ".*"' ./docker-compose.yml)
+		if [ "$OLD_DEBUG" == "EPAXOS_DEBUG: \"$DEBUG\"" ]; then
+			echo "Config file good"
+			VALID=1
+		fi
     fi
 fi
 
@@ -40,7 +54,7 @@ EOF
     container_name: epaxos-server-$I
     restart: always
     environment:
-      EPAXOS_DEBUG: "TRUE"
+      EPAXOS_DEBUG: "$DEBUG"
       EPAXOS_LISTEN: "0.0.0.0:23330"
       EPAXOS_NREPLICAS: "$NREPS"
       EPAXOS_REPLICA_ID: "$I"

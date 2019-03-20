@@ -54,6 +54,12 @@ See details by `./bin/client --help`, `./bin/client <command> --help`
 ./bin/client [-n <nrep>] batch-put <server> <keys>
 ```
 
+- Chao test:
+
+```sh
+TODO
+```
+
 ### Run large-scale with kubernetes
 
 Build the docker image:

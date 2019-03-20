@@ -1,0 +1,46 @@
+DOCKER_ARGS=-d --volume /var/run/docker.sock:/var/run/docker.sock
+DOCKER_PUMBA=$(DOCKER_ARGS) gaiaadm/pumba --log-level info
+
+pumba-down:
+	docker ps --format '{{.Names}}' | grep '^epaxos-pumba-' | xargs docker rm -f
+
+pumba-kill-%:
+	$(eval ARG := $(patsubst pumba-kill-%,%,$@))
+	-docker rm -f epaxos-pumba-kill
+	docker run --name epaxos-pumba-kill $(DOCKER_PUMBA) \
+		--interval "$(ARG)" --random \
+		kill --signal SIGKILL "epaxos-server-.*"
+
+pumba-delay-%ms:
+	$(eval ARG := $(patsubst pumba-delay-%ms,%,$@))
+	-docker rm -f epaxos-pumba-delay
+	docker run --name epaxos-pumba-delay $(DOCKER_PUMBA) \
+		netem --duration 1000000h \
+		delay --time "$(ARG)" --jitter "$$(($(ARG)/10))"
+
+pumba-loss-%:
+	$(eval ARG := $(patsubst pumba-loss-%,%,$@))
+	-docker rm -f epaxos-pumba-loss
+	docker run --name epaxos-pumba-loss $(DOCKER_PUMBA) \
+		netem --duration 1000000h \
+		loss --percent "$(ARG)"
+
+pumba-dup-%:
+	$(eval ARG := $(patsubst pumba-dup-%,%,$@))
+	-docker rm -f epaxos-pumba-dup
+	docker run --name epaxos-pumba-dup $(DOCKER_PUMBA) \
+		netem --duration 1000000h \
+		duplicate --percent "$(ARG)"
+
+# For shell auto-complete
+pumba-kill-5s:
+pumba-kill-10s:
+pumba-delay-10ms:
+pumba-delay-100ms:
+pumba-delay-1000ms:
+pumba-loss-0.1:
+pumba-loss-1:
+pumba-loss-10:
+pumba-dup-0.1:
+pumba-dup-1:
+pumba-dup-10:
