@@ -20,7 +20,7 @@ func (ep *EPaxos) appendLogs(rep common.ReplicaID) error {
 	self := rep == ep.self
 
 	if ep.verbose {
-		log.Printf("appendLogs on %d: offset %v, pending %v", rep, my.Offset, len(my.Pending))
+		log.Printf("Start appendLogs on %d: offset %v, pending %v", rep, my.Offset, len(my.Pending))
 	}
 
 	file := my.LogFile
@@ -40,7 +40,7 @@ func (ep *EPaxos) appendLogs(rep common.ReplicaID) error {
 			break
 		}
 		if ep.verbose {
-			log.Printf("Persisting %d %d->%d: %v", rep, my.Offset, id, obj.inst)
+			log.Printf("Persisting appendLogs on #%02d.%d: %+v", rep, id, obj.inst)
 		}
 		err = struc.Pack(file, obj.inst.Cmd)
 		if err != nil {
@@ -52,14 +52,23 @@ func (ep *EPaxos) appendLogs(rep common.ReplicaID) error {
 				defer ep.ismsL.RUnlock()
 				return ep.isms[id]
 			}()
+			if ep.verbose {
+				log.Printf("Notifying appendLogs on #%02d.%d", rep, id)
+			}
 			ism.cmChan <- true
 		}
 	}
 
-	my.Offset = common.InstanceID(int(my.Offset) + i)
-	my.Pending = my.Pending[i:]
-	if ep.verbose {
-		log.Printf("Done appendLogs %d, new offset %d", rep, my.Offset)
+	if i == 0 {
+		if ep.verbose {
+			log.Printf("Done appendLogs on %d, untouched offset %d, still %d pending", rep, my.Offset, len(my.Pending))
+		}
+	} else {
+		my.Offset = common.InstanceID(int(my.Offset) + i)
+		my.Pending = my.Pending[i:]
+		if ep.verbose {
+			log.Printf("Done appendLogs on %d, %d persisted and new offset is %d,  still %d pending", rep, i, my.Offset, len(my.Pending))
+		}
 	}
 	return nil
 }

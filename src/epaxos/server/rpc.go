@@ -144,26 +144,16 @@ func (ep *EPaxos) processUdp(msg interface{}, addr *net.UDPAddr) {
 		}()
 	case common.RequestMsg:
 		go func() {
-			r, err := ep.ProcessRequest(m)
-			if err != nil {
-				log.Println(err)
-				err = ep.replyClient(addr, common.RequestOKMsg{Err: true})
-			} else {
-				err = ep.replyClient(addr, r)
-			}
+			r := ep.ProcessRequest(m)
+			err := ep.replyClient(addr, r)
 			if err != nil {
 				log.Println(err)
 			}
 		}()
 	case common.RequestAndReadMsg:
 		go func() {
-			r, err := ep.ProcessRequestAndRead(m)
-			if err != nil {
-				log.Println(err)
-				err = ep.replyClient(addr, common.RequestAndReadOKMsg{Err: true})
-			} else {
-				err = ep.replyClient(addr, r)
-			}
+			r := ep.ProcessRequestAndRead(m)
+			err := ep.replyClient(addr, r)
 			if err != nil {
 				log.Println(err)
 			}

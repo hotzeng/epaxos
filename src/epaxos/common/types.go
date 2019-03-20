@@ -66,8 +66,8 @@ type PreAcceptMsg struct {
 }
 type PreAcceptOKMsg struct {
 	Id     InstRef
-	Inst   Instance
 	Sender ReplicaID
+	Inst   Instance
 }
 
 type AcceptMsg struct {
@@ -76,8 +76,8 @@ type AcceptMsg struct {
 }
 type AcceptOKMsg struct {
 	Id     InstRef
-	Inst   Instance
 	Sender ReplicaID
+	Inst   Instance
 }
 
 type CommitMsg struct {
@@ -93,6 +93,7 @@ type PrepareOKMsg struct {
 	Ack    bool
 	Ballot BallotNumber
 	Id     InstRef
+	Sender ReplicaID
 	Inst   Instance
 }
 
@@ -155,19 +156,22 @@ func (m PreAcceptMsg) GetSender() ReplicaID {
 	return m.Id.Replica
 }
 func (m PreAcceptOKMsg) GetSender() ReplicaID {
-	return m.Id.Replica
+	return m.Sender
 }
 func (m AcceptMsg) GetSender() ReplicaID {
 	return m.Id.Replica
 }
 func (m AcceptOKMsg) GetSender() ReplicaID {
-	return m.Id.Replica
+	return m.Sender
 }
 func (m CommitMsg) GetSender() ReplicaID {
 	return m.Id.Replica
 }
 func (m PrepareMsg) GetSender() ReplicaID {
 	return m.Id.Replica
+}
+func (m PrepareOKMsg) GetSender() ReplicaID {
+	return m.Sender
 }
 func (m TryPreAcceptMsg) GetSender() ReplicaID {
 	return m.Id.Replica

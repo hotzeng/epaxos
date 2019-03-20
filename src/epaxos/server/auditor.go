@@ -8,9 +8,12 @@ import (
 func (ep *EPaxos) putAt(ref common.InstRef, obj *StatefulInst) {
 	my := ep.array[ref.Replica]
 	id := int(ref.Inst)
+	if ep.verbose {
+		log.Printf("putting to #%02d.%d: %+v", ref.Replica, ref.Inst, obj)
+	}
 	my.Mu.Lock()
 	defer my.Mu.Unlock()
-	for int(my.Offset)+len(my.Pending) < id-1 {
+	for int(my.Offset)+len(my.Pending) < id {
 		if ep.verbose {
 			log.Printf("Out-of-order append happen on %d, from %d to %d", ref.Replica, int(my.Offset)+len(my.Pending), id)
 		}
@@ -26,6 +29,9 @@ func (ep *EPaxos) putAt(ref common.InstRef, obj *StatefulInst) {
 			log.Printf("Rewriting to %d, offset %d, from %d to %d", ref.Replica, my.Offset, len(my.Pending), id)
 		}
 		my.Pending[ref.Inst-my.Offset] = obj
+	}
+	if ep.verbose {
+		log.Printf("already put to #%02d.%d: %+v", ref.Replica, ref.Inst, my.Pending[ref.Inst-my.Offset])
 	}
 }
 

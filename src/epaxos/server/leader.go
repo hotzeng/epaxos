@@ -311,14 +311,18 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 	}
 }
 
-func (ep *EPaxos) ProcessRequest(req common.RequestMsg) (common.RequestOKMsg, error) {
+func (ep *EPaxos) ProcessRequest(req common.RequestMsg) common.RequestOKMsg {
 	var res common.RequestOKMsg
 	res.MId = req.MId
 	err := ep.RpcRequest(req, &res)
-	return res, err
+	if err != nil {
+		log.Println(err)
+		res.Err = true
+	}
+	return res
 }
 
-func (ep *EPaxos) ProcessRequestAndRead(req common.RequestAndReadMsg) (common.RequestAndReadOKMsg, error) {
+func (ep *EPaxos) ProcessRequestAndRead(req common.RequestAndReadMsg) common.RequestAndReadOKMsg {
 	// TODO
-	return common.RequestAndReadOKMsg{MId: req.MId}, nil
+	return common.RequestAndReadOKMsg{MId: req.MId}
 }
