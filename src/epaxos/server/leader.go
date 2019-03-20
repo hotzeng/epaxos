@@ -53,6 +53,11 @@ func (ep *EPaxos) RpcRequest(req common.RequestMsg, res *common.RequestOKMsg) er
 		ep.isms[instId] = ism
 		return instId
 	}()
+	defer func() {
+		ep.ismsL.Lock()
+		defer ep.ismsL.Unlock()
+		delete(ep.isms, ism.instId)
+	}()
 
 	if ep.verbose {
 		log.Printf("Leader started processing request %d", ism.instId)
@@ -125,6 +130,7 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 	if ep.verbose {
 		log.Printf("Leader %d in Start Phase", ism.instId)
 	}
+	id := common.InstRef{Replica: ep.self, Inst: ism.instId}
 	deps := make([]common.InstRef, 0)
 	seqMax := common.Sequence(0)
 	for index1, oneReplica := range ep.array {
@@ -150,22 +156,7 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 		},
 		state: PreAccepting,
 	}
-	func() {
-		my := ep.array[ep.self]
-		my.Mu.Lock()
-		defer my.Mu.Unlock()
-		for int(my.Offset)+len(my.Pending) < int(ism.instId)-1 {
-			if ep.verbose {
-				log.Println("Out-of-order append happends, from %d to %d", int(my.Offset)+len(my.Pending), ism.instId)
-			}
-			my.Pending = append(my.Pending, nil)
-		}
-		if int(my.Offset)+len(my.Pending) < int(ism.instId) {
-			my.Pending = append(my.Pending, ism.obj)
-		} else {
-			my.Pending[ism.instId-my.Offset] = ism.obj
-		}
-	}()
+	ep.putAt(id, ism.obj)
 
 	// send PreAccept to all other replicas in F
 	// F := ep.peers / 2
@@ -174,7 +165,7 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 	ism.paFast = true
 	ism.obj.state = PreAccepting
 	ep.makeMulticast(common.PreAcceptMsg{
-		Id:   common.InstRef{Replica: ep.self, Inst: ism.instId},
+		Id:   id,
 		Inst: ism.obj.inst,
 	}, ism.paLeft)
 	if ep.verbose {
@@ -228,7 +219,7 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 				ism.acLeft = ep.peers / 2
 				// send accepted msg to replicas
 				ep.makeMulticast(common.AcceptMsg{
-					Id:   common.InstRef{Replica: ep.self, Inst: ism.instId},
+					Id:   id,
 					Inst: ism.obj.inst,
 				}, ism.acLeft)
 				if ep.verbose {
@@ -242,7 +233,7 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 				ism.paLeft = F - int64(1)
 				ism.paBook = make(map[common.ReplicaID]bool)
 				ep.makeMulticast(common.PreAcceptMsg{
-					Id:   common.InstRef{Replica: ep.self, Inst: ism.instId},
+					Id:   id,
 					Inst: ism.obj.inst,
 				}, ism.paLeft)
 			}
@@ -275,7 +266,7 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 				ism.acLeft = ep.peers / 2
 				ism.acBook = make(map[common.ReplicaID]bool)
 				ep.makeMulticast(common.AcceptMsg{
-					Id:   common.InstRef{Replica: ep.self, Inst: ism.instId},
+					Id:   id,
 					Inst: ism.obj.inst,
 				}, ism.acLeft)
 			}
@@ -289,7 +280,7 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 			ism.obj.state = Finished
 			// send commit msg to replicas
 			ep.makeMulticast(common.CommitMsg{
-				Id:   common.InstRef{Replica: ep.self, Inst: ism.instId},
+				Id:   id,
 				Inst: ism.obj.inst,
 			}, ep.peers-int64(1))
 			return nil

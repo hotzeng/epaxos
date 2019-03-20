@@ -5,66 +5,93 @@ import (
 	"log"
 )
 
+func (ep *EPaxos) putAt(ref common.InstRef, obj *StatefulInst) {
+	my := ep.array[ref.Replica]
+	id := int(ref.Inst)
+	my.Mu.Lock()
+	defer my.Mu.Unlock()
+	for int(my.Offset)+len(my.Pending) < id-1 {
+		if ep.verbose {
+			log.Printf("Out-of-order append happen on %d, from %d to %d", ref.Replica, int(my.Offset)+len(my.Pending), id)
+		}
+		my.Pending = append(my.Pending, nil)
+	}
+	if int(my.Offset)+len(my.Pending) <= id {
+		if ep.verbose {
+			log.Printf("Appending to %d, offset %d, from %d to %d", ref.Replica, my.Offset, len(my.Pending), id)
+		}
+		my.Pending = append(my.Pending, obj)
+	} else {
+		if ep.verbose {
+			log.Printf("Rewriting to %d, offset %d, from %d to %d", ref.Replica, my.Offset, len(my.Pending), id)
+		}
+		my.Pending[ref.Inst-my.Offset] = obj
+	}
+}
+
 func (ep *EPaxos) ProcessPreAccept(req common.PreAcceptMsg) {
 	if ep.verbose {
 		log.Printf("Auditor %d received PreAcceptMsg!", ep.self)
 	}
 	interf := make([]common.InstRef, 0)
 	seqMax := req.Inst.Seq
-	ep.mu.Lock()
 	for index1, oneReplica := range ep.array {
-		for index2, oneInst := range oneReplica.Pending {
-			if interfCmd(oneInst.inst.Cmd, req.Inst.Cmd) {
-				interf = append(interf, common.InstRef{Replica: common.ReplicaID(index1), Inst: common.InstanceID(index2)})
-				if oneInst.inst.Seq+1 > seqMax {
-					seqMax = oneInst.inst.Seq + 1
+		func() {
+			oneReplica.Mu.RLock()
+			defer oneReplica.Mu.RUnlock()
+			for index2, oneInst := range oneReplica.Pending {
+				if interfCmd(oneInst.inst.Cmd, req.Inst.Cmd) {
+					interf = append(interf, common.InstRef{
+						Replica: common.ReplicaID(index1),
+						Inst:    common.InstanceID(index2),
+					})
+					if oneInst.inst.Seq+1 > seqMax {
+						seqMax = oneInst.inst.Seq + 1
+					}
 				}
 			}
-		}
+		}()
 	}
-	// update deps
+	req.Inst.Seq = seqMax
 	compareMerge(&req.Inst.Deps, interf)
-	inst := common.Instance{
-		Cmd:  req.Inst.Cmd,
-		Seq:  seqMax,
-		Deps: req.Inst.Deps,
+	obj := &StatefulInst{
+		inst:  req.Inst,
+		state: PreAccepting,
 	}
+
 	// check if need to fill in null elements in the Pending slice
-	pendingLen := len(ep.array[req.Id.Replica].Pending)
-	if pendingLen >= int(req.Id.Inst) {
-		log.Println("Pending array is erroneously wrong")
-	} else if pendingLen < int(req.Id.Inst)-1 {
-		// if too short, add nil elements
-		for i := pendingLen; i < int(req.Id.Inst)-1; i++ {
-			ep.array[req.Id.Replica].Pending = append(ep.array[req.Id.Replica].Pending, &StatefulInst{})
-		}
-	}
-	ep.array[req.Id.Replica].Pending = append(ep.array[req.Id.Replica].Pending, &StatefulInst{inst: inst, state: PreAccepted})
-	ep.mu.Unlock()
+	ep.putAt(req.Id, obj)
 
 	// prepare PreAcceptOK msg and reply
-	sendMsg := common.PreAcceptOKMsg{
-		Id:     common.InstRef{Replica: req.Id.Replica, Inst: req.Id.Inst},
-		Inst:   inst,
+	ep.rpc[req.Id.Replica] <- common.PreAcceptOKMsg{
+		Id:     req.Id,
+		Inst:   req.Inst,
 		Sender: ep.self,
 	}
-	ep.rpc[req.Id.Replica] <- sendMsg
 	if ep.verbose {
 		log.Printf("Auditor %d replied PreAcceptOKMsg!", ep.self)
 	}
 }
 
 func (ep *EPaxos) ProcessAccept(req common.AcceptMsg) {
-	ep.mu.Lock()
-	ep.array[req.Id.Replica].Pending[req.Id.Inst-1] = &StatefulInst{inst: req.Inst, state: Accepted}
-	ep.mu.Unlock()
-	ep.rpc[req.Id.Replica] <- common.AcceptOKMsg{Id: req.Id, Inst: req.Inst, Sender: ep.self}
+	obj := &StatefulInst{
+		inst:  req.Inst,
+		state: Accepting,
+	}
+	ep.putAt(req.Id, obj)
+	ep.rpc[req.Id.Replica] <- common.AcceptOKMsg{
+		Id:     req.Id,
+		Inst:   req.Inst,
+		Sender: ep.self,
+	}
 }
 
 func (ep *EPaxos) ProcessCommit(req common.CommitMsg) {
-	ep.mu.Lock()
-	ep.array[req.Id.Replica].Pending[req.Id.Inst-1] = &StatefulInst{inst: req.Inst, state: Committed}
-	ep.mu.Unlock()
+	obj := &StatefulInst{
+		inst:  req.Inst,
+		state: Committing,
+	}
+	ep.putAt(req.Id, obj)
 }
 
 func (ep *EPaxos) ProcessPrepare(req common.PrepareMsg) {

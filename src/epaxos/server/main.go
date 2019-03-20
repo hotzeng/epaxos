@@ -135,6 +135,7 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 
 	ep.sem = semaphore.NewWeighted(int64(pipe))
 	ep.ctx = context.TODO()
+	ep.isms = make(map[common.InstanceID]*InstStateMachine)
 	return ep
 }
 
