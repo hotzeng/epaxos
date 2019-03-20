@@ -56,14 +56,14 @@ func (ep *EPaxos) ProcessPreAccept(req common.PreAcceptMsg) {
 
 func (ep *EPaxos) ProcessAccept(req common.AcceptMsg) {
 	ep.mu.Lock()
-	ep.array[req.Id.Replica].Pending[req.Id.Inst] = &StatefulInst{inst: req.Inst, state: Accepted}
+	ep.array[req.Id.Replica].Pending[req.Id.Inst-1] = &StatefulInst{inst: req.Inst, state: Accepted}
 	ep.mu.Unlock()
 	ep.rpc[req.Id.Replica] <- common.AcceptOKMsg{Id: req.Id, Inst: req.Inst, Sender: ep.self}
 }
 
 func (ep *EPaxos) ProcessCommit(req common.CommitMsg) {
 	ep.mu.Lock()
-	ep.array[req.Id.Replica].Pending[req.Id.Inst] = &StatefulInst{inst: req.Inst, state: Committed}
+	ep.array[req.Id.Replica].Pending[req.Id.Inst-1] = &StatefulInst{inst: req.Inst, state: Committed}
 	ep.mu.Unlock()
 }
 
