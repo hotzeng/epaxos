@@ -38,8 +38,17 @@ func (ism *InstStateMachine) paChanMake() {
 	ism.paChan = make(chan common.PreAcceptOKMsg)
 }
 func (ism *InstStateMachine) paChanDrop() {
-	ism.mu.Lock()
+	go func() {
+		for {
+			m, ok := <-ism.paChan // Consume all pending requests
+			if ok {
+				log.Printf("Warning: excessive message %d: %+v", ism.instId, m)
+			}
+		}
+	}()
+	ism.mu.Lock() // No more write requests
 	defer ism.mu.Unlock()
+	close(ism.paChan) // tell the fake consumer to stop
 	ism.paChan = nil
 }
 func (ism *InstStateMachine) paChanRead(timeout time.Duration) (*common.PreAcceptOKMsg, bool) {
@@ -59,8 +68,17 @@ func (ism *InstStateMachine) acChanMake() {
 	ism.acChan = make(chan common.AcceptOKMsg)
 }
 func (ism *InstStateMachine) acChanDrop() {
-	ism.mu.Lock()
+	go func() {
+		for {
+			m, ok := <-ism.acChan // Consume all pending requests
+			if ok {
+				log.Printf("Warning: excessive message %d: %+v", ism.instId, m)
+			}
+		}
+	}()
+	ism.mu.Lock() // No more write requests
 	defer ism.mu.Unlock()
+	close(ism.acChan) // tell the fake consumer to stop
 	ism.acChan = nil
 }
 func (ism *InstStateMachine) acChanRead(timeout time.Duration) (*common.AcceptOKMsg, bool) {

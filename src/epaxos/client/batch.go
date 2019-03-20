@@ -8,9 +8,90 @@ import (
 	"golang.org/x/sync/semaphore"
 	"log"
 	"math/rand"
+	"reflect"
 	"sync"
 	"time"
 )
+
+type PutStateMachine struct {
+	mu     sync.RWMutex // Limit access to ch
+	count  int
+	mid    int64
+	server common.ReplicaID
+	key    common.Key
+	val    common.Value
+	ch     chan common.RequestOKMsg
+	retry  int
+}
+
+func (ism *PutStateMachine) chMake() {
+	ism.mu.Lock()
+	defer ism.mu.Unlock()
+	ism.ch = make(chan common.RequestOKMsg)
+}
+func (ism *PutStateMachine) chDrop() {
+	go func() {
+		for {
+			m, ok := <-ism.ch // Consume all pending requests
+			if ok {
+				log.Printf("Warning: excessive message ##%05d [%d]=0x%016x (%d) to %d: %+v", ism.count, ism.key, ism.val, ism.mid, ism.server, m)
+			}
+		}
+	}()
+	ism.mu.Lock() // No more write requests
+	defer ism.mu.Unlock()
+	close(ism.ch) // tell the fake consumer to stop
+	ism.ch = nil
+}
+func (ism *PutStateMachine) chRead(timeout time.Duration) (*common.RequestOKMsg, bool) {
+	ism.mu.RLock()
+	defer ism.mu.RUnlock()
+	select {
+	case msg := <-ism.ch:
+		return &msg, true
+	case <-time.After(timeout):
+		return nil, false
+	}
+}
+
+func (ep *EPaxosCluster) runISM(ism *PutStateMachine, verbose bool) bool {
+	rawmsg := common.RequestMsg{
+		MId: ism.mid,
+		Cmd: common.Command{
+			CmdType: common.CmdPut,
+			Key:     ism.key,
+			Value:   ism.val,
+		},
+	}
+	ism.chMake()
+	defer ism.chDrop()
+	ep.rpc[ism.server] <- rawmsg
+	if verbose {
+		log.Printf("Batch PUT: ##%05d [%d]=0x%016x (%d) sent to %d", ism.count, ism.key, ism.val, ism.mid, ism.server)
+	}
+	good := true
+	for ret := 0; ret <= ism.retry; ret++ {
+		if msg, ok := ism.chRead(configEPaxos.TimeOut); ok {
+			if msg.Err {
+				good = false
+				log.Printf("Batch PUT: ##%05d [%d]=0x%016x to %d remote error", ism.count, ism.key, ism.val, ism.server)
+			} else {
+				if verbose {
+					log.Printf("Batch PUT: ##%05d [%d]=0x%016x to %d committed", ism.count, ism.key, ism.val, ism.server)
+				}
+			}
+			return good
+		} else {
+		}
+		if ret < ism.retry {
+			log.Printf("Batch PUT: ##%05d [%d]=0x%016x to %d timeout, retry %d/%d", ism.count, ism.key, ism.val, ism.server, ret, ism.retry)
+			ep.rpc[ism.server] <- rawmsg
+		} else {
+			log.Printf("Batch PUT: ##%05d [%d]=0x%016x to %d timeout, no more retry", ism.count, ism.key, ism.val, ism.server)
+		}
+	}
+	return false
+}
 
 func (ep *EPaxosCluster) cmdBatchPut(argv []string) error {
 	usage := `usage: client batch-put [options] <server> <keys>
@@ -24,7 +105,7 @@ options:
 	--random-key         choose keys randomly each time
 	--max-retry <retry>  retry limit for single operation [default: 65536]
 	--pipeline <pipe>    on-flight operations limit [default: 1]
-`
+	`
 	args, _ := docopt.ParseArgs(usage, argv, "epaxos-client version "+VERSION)
 
 	verbose, err := args.Bool("--verbose")
@@ -81,31 +162,42 @@ options:
 	sem := semaphore.NewWeighted(int64(pipe))
 	ctx := context.TODO()
 
-	var mu sync.Mutex
-	dic := make(map[int64]chan common.RequestOKMsg)
-	chx := make(chan interface{})
-	for _, ch := range ep.inbound {
-		go func(ch chan interface{}) {
+	var mu sync.RWMutex
+	dic := make(map[int64]*PutStateMachine)
+	chx := make(chan interface{}, pipe)
+	for i, ch := range ep.inbound {
+		go func(i int, ch chan interface{}) {
 			for {
-				select {
-				case m := <-ch:
-					chx <- m
+				m := <-ch
+				if verbose {
+					log.Printf("<-- #%02d  %s:%+v", i, reflect.TypeOf(m), m)
 				}
+				chx <- m
 			}
-		}(ch)
+		}(i, ch)
 	}
 	go func() {
 		for {
-			select {
-			case msg := <-chx:
-				if m, ok := msg.(common.RequestOKMsg); ok {
+			msg := <-chx
+			if m, ok := msg.(common.RequestOKMsg); ok {
+				ism := func() *PutStateMachine {
+					mu.RLock()
+					defer mu.RUnlock()
+					if ism, ok := dic[m.MId]; ok {
+						return ism
+					} else {
+						log.Printf("Received erroneous RequestOKMsg: %+v", m)
+						return nil
+					}
+				}()
+				if ism != nil {
 					func() {
-						mu.Lock()
-						defer mu.Unlock()
-						if ch, ok := dic[m.MId]; ok {
-							ch <- m
+						ism.mu.RLock()
+						defer ism.mu.RUnlock()
+						if ism.ch != nil {
+							ism.ch <- m
 						} else {
-							log.Printf("Received erroneous RequestOKMsg")
+							log.Printf("Warning: attempt to write to nil chan at %d", m.MId)
 						}
 					}()
 				}
@@ -130,30 +222,22 @@ options:
 			key = rand.Intn(keyN)
 		}
 
-		sid := int64(server+serverL) % configEPaxos.NReps
-		kid := key + keyL
-
-		rawmsg := common.RequestMsg{
-			MId: mid,
-			Cmd: common.Command{
-				CmdType: common.CmdPut,
-				Key:     common.Key(kid),
-				Value:   common.Value(mid),
-			},
+		ism := &PutStateMachine{
+			count:  count,
+			mid:    mid,
+			server: common.ReplicaID(int64(server+serverL) % configEPaxos.NReps),
+			key:    common.Key(key + keyL),
+			val:    common.Value(mid),
+			retry:  retry,
 		}
-		ch := make(chan common.RequestOKMsg)
 		func() {
 			mu.Lock()
 			defer mu.Unlock()
-			dic[mid] = ch
+			dic[mid] = ism
 		}()
-		ep.rpc[sid] <- rawmsg
-		if verbose {
-			log.Printf("Batch PUT: ##%05d [%d]=0x%016x sent to %d", count, kid, mid, sid)
-		}
-
 		wg.Add(1)
-		go func(count, kid int, mid, sid int64) {
+
+		go func() {
 			defer wg.Done()
 			defer func() {
 				mu.Lock()
@@ -161,28 +245,10 @@ options:
 				delete(dic, mid)
 			}()
 			defer sem.Release(1)
-			for ret := 0; ret <= retry; ret++ {
-				select {
-				case msg := <-ch:
-					if msg.Err {
-						good = false
-						log.Printf("Batch PUT: ##%05d [%d]=0x%016x to %d remote error", count, kid, mid, sid)
-					} else {
-						if verbose {
-							log.Printf("Batch PUT: ##%05d [%d]=0x%016x to %d committed", count, kid, mid, sid)
-						}
-					}
-					return
-				case <-time.After(configEPaxos.TimeOut):
-				}
-				if ret < retry {
-					log.Printf("Batch PUT: ##%05d [%d]=0x%016x to %d timeout, retry %d/%d", count, kid, mid, sid, ret, retry)
-				} else {
-					log.Printf("Batch PUT: ##%05d [%d]=0x%016x to %d timeout, no more retry", count, kid, mid, sid)
-				}
+			if !ep.runISM(ism, verbose) {
+				good = false
 			}
-			good = false
-		}(count, kid, mid, sid)
+		}()
 
 		mid++
 		count++
