@@ -3,7 +3,7 @@ DOCKER_PUMBA=$(DOCKER_ARGS) gaiaadm/pumba --log-level info
 PUMBA_TARGET=re2:epaxos-server-.*
 
 pumba-down:
-	docker ps --format '{{.Names}}' | grep '^epaxos-pumba-' | xargs docker rm -f
+	docker ps -a --format '{{.Names}}' | grep '^epaxos-pumba-' | xargs -r docker rm -f
 
 pumba-kill-%:
 	$(eval ARG := $(patsubst pumba-kill-%,%,$@))

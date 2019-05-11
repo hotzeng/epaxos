@@ -4,6 +4,7 @@ import (
 	"context"
 	"epaxos/common"
 	"errors"
+	"fmt"
 	"github.com/docopt/docopt-go"
 	"golang.org/x/sync/semaphore"
 	"log"
@@ -100,6 +101,7 @@ options:
 	-v, --verbose        be verbose
 	-N <nops>            number of operations, infinite = -1 [default: -1]
 	-S <servers>         servers to choose from [default: 1]
+	-L, --latency        write individual latency to stdout
 	--key-bias <key>     minimum key value [default: 0]
 	--random-server      choose servers randomly each time
 	--random-key         choose keys randomly each time
@@ -124,6 +126,11 @@ options:
 	}
 
 	serverN, err := args.Int("-S")
+	if err != nil {
+		return err
+	}
+
+	latency, err := args.Bool("--latency")
 	if err != nil {
 		return err
 	}
@@ -165,6 +172,8 @@ options:
 	var mu sync.RWMutex
 	dic := make(map[int64]*PutStateMachine)
 	chx := make(chan interface{}, pipe)
+	lat := make(chan int64, pipe)
+	latDone := make(chan bool)
 	for i, ch := range ep.inbound {
 		go func(i int, ch chan interface{}) {
 			for {
@@ -204,6 +213,18 @@ options:
 			}
 		}
 	}()
+	if latency {
+		go func() {
+			for {
+				if l, ok := <-lat; ok {
+					fmt.Printf("%d\n", l)
+				} else {
+					break
+				}
+			}
+			latDone <- true
+		}()
+	}
 
 	var wg sync.WaitGroup
 	good := true
@@ -245,8 +266,12 @@ options:
 				delete(dic, mid)
 			}()
 			defer sem.Release(1)
+			start := time.Now()
 			if !ep.runISM(ism, verbose) {
 				good = false
+			}
+			if latency {
+				lat <- time.Now().Sub(start).Nanoseconds()
 			}
 		}()
 
@@ -264,6 +289,10 @@ options:
 		}
 	}
 	wg.Wait()
+	if latency {
+		close(lat)
+		<-latDone
+	}
 	if !good {
 		return errors.New("remote errors")
 	}

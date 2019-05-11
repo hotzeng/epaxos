@@ -1,0 +1,2 @@
+report/plot1.csv: scripts/plot1.sh debug
+	$< | tee $@ >/dev/null

@@ -3,6 +3,7 @@
 *.swn
 *~
 /data
+/report
 /bin
 /pkg
 /VERSION

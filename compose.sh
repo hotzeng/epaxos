@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -euo pipefail
+
 DEBUG="TRUE"
 if [ "$1" = "--prod" ]; then
 	DEBUG="FALSE"
@@ -8,11 +10,11 @@ fi
 
 NREPS="$1"
 if [ -z "$NREPS" ]; then
-    echo "Usage: ./compose.sh <nreps> <args>..."
+    echo "Usage: ./compose.sh <nreps> <args>..." >&2
     exit 1
 fi
 if [ "$NREPS" -gt "10" ]; then
-    echo "Maximum 10 replicas for docker-compose"
+    echo "Maximum 10 replicas for docker-compose" >&2
     exit 2
 fi
 shift
@@ -26,9 +28,9 @@ VALID=
 if [ -f "$0" ] && [ -f "./docker-compose.yml" ] && [ "$0" -ot "./docker-compose.yml" ]; then
     OLD=$(docker-compose config --services | wc -l)
     if [ "$NREPS" = "$OLD" ]; then
-		OLD_DEBUG=$(grep 'EPAXOS_DBEUG: ".*"' ./docker-compose.yml)
+		OLD_DEBUG=$(grep -o 'EPAXOS_DEBUG: ".*"' ./docker-compose.yml)
 		if [ "$OLD_DEBUG" == "EPAXOS_DEBUG: \"$DEBUG\"" ]; then
-			echo "Config file good"
+			echo "Config file good" >&2
 			VALID=1
 		fi
     fi
@@ -78,7 +80,7 @@ networks:
     driver: bridge
 EOF
 
-    echo "Config file regenerated"
+    echo "Config file regenerated" >&2
 fi
 
 if [ ! "$#" = 0 ]; then

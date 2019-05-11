@@ -7,6 +7,7 @@ import (
 	"github.com/docopt/docopt-go"
 	"log"
 	"net"
+	"os"
 	"sync"
 	"time"
 )
@@ -50,7 +51,8 @@ type logWriter struct {
 }
 
 func (*logWriter) Write(bytes []byte) (int, error) {
-	return fmt.Printf(
+	return fmt.Fprintf(
+		os.Stderr,
 		"%s %s",
 		time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
 		string(bytes),

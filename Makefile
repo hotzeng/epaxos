@@ -2,6 +2,7 @@ FILES=$(shell find src/ -type f -name '*')
 LDFLAGS=-X main.VERSION=$$(cat VERSION)
 
 -include Makefile.pumba
+-include Makefile.test
 
 .PHONY: all debug dist FORCE docker clean dist-clean data-clean fmt
 
