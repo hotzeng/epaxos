@@ -28,7 +28,7 @@ VALID=
 if [ -f "$0" ] && [ -f "./docker-compose.yml" ] && [ "$0" -ot "./docker-compose.yml" ]; then
     OLD=$(docker-compose config --services | wc -l)
     if [ "$NREPS" = "$OLD" ]; then
-		OLD_DEBUG=$(grep -o 'EPAXOS_DEBUG: ".*"' ./docker-compose.yml)
+		OLD_DEBUG=$(grep -o 'EPAXOS_DEBUG: ".*"' ./docker-compose.yml | head -n 1)
 		if [ "$OLD_DEBUG" == "EPAXOS_DEBUG: \"$DEBUG\"" ]; then
 			echo "Config file good" >&2
 			VALID=1

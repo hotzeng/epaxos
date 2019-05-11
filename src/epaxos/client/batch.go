@@ -82,7 +82,6 @@ func (ep *EPaxosCluster) runISM(ism *PutStateMachine, verbose bool) bool {
 				}
 			}
 			return good
-		} else {
 		}
 		if ret < ism.retry {
 			log.Printf("Batch PUT: ##%05d [%d]=0x%016x to %d timeout, retry %d/%d", ism.count, ism.key, ism.val, ism.server, ret, ism.retry)
@@ -258,13 +257,13 @@ options:
 		}()
 		wg.Add(1)
 
-		go func() {
+		go func(mid int64) {
 			defer wg.Done()
-			defer func() {
+			defer func(mid int64) {
 				mu.Lock()
 				defer mu.Unlock()
 				delete(dic, mid)
-			}()
+			}(mid)
 			defer sem.Release(1)
 			start := time.Now()
 			if !ep.runISM(ism, verbose) {
@@ -273,7 +272,7 @@ options:
 			if latency {
 				lat <- time.Now().Sub(start).Nanoseconds()
 			}
-		}()
+		}(mid)
 
 		mid++
 		count++
