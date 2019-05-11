@@ -107,7 +107,7 @@ type PrepareOKMsg struct {
 	Ballot BallotNumber // Ballot.Id is important
 	Id     InstRef
 	Sender ReplicaID    // important
-	//Inst   Instance
+	Inst   Instance
     State  InstState    // important
 }
 
