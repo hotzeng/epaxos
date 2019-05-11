@@ -72,8 +72,8 @@ func (ep *EPaxos) ProcessPreAccept(req common.PreAcceptMsg) {
 	req.Inst.Seq = seqMax
 	compareMerge(&req.Inst.Deps, interf)
 	obj := &StatefulInst{
-		inst:  req.Inst,
-		state: PreAccepting,
+		inst:   req.Inst,
+		state:  PreAccepting,
 	}
 
 	// check if need to fill in null elements in the Pending slice
@@ -120,6 +120,17 @@ func (ep *EPaxos) ProcessCommit(req common.CommitMsg) {
 
 func (ep *EPaxos) ProcessPrepare(req common.PrepareMsg) {
 	// TODO
+    // increase ballot number
+    ep.rpc[req.Id.Replica] <- common.PrepareOKMsg{
+        Ack:    true,
+        Ballot: ep.array[req.Id.Replica].Pending[req.Id.Inst].inst.Ballot,
+        Id:     req.Id,
+        Sender: ep.self,
+        State:  ep.array[req.Id.Replica].Pending[req.Id.Inst].state
+    }
+    if ep.verbose {
+        log.Printf("Auditor #%02.%d replied PrepareOKMsg!", req.Id.Replica, req.Id.Inst)
+    }
 }
 
 func (ep *EPaxos) ProcessTryPreAccept(req common.TryPreAcceptMsg) {

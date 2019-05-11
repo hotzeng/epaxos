@@ -8,6 +8,7 @@ type ReplicaID int64
 type InstanceID int64
 type EpochID int64
 type BallotID int64
+type InstState int
 
 const (
 	CmdNoOp CmdType = 0
@@ -23,10 +24,11 @@ type Command struct {
 }
 
 type Instance struct {
-	Cmd   Command
-	Seq   Sequence
-	NDeps int64 `struc:"sizeof=Deps"`
-	Deps  []InstRef
+	Cmd     Command
+	Seq     Sequence
+	NDeps   int64 `struc:"sizeof=Deps"`
+	Deps    []InstRef
+    Ballot  BallotNumber
 }
 
 type InstRef struct {
@@ -39,9 +41,19 @@ type BallotNumber struct {
 	Id      BallotID
 	Replica ReplicaID
 }
+type Instance struct {
+	Cmds           []state.Command
+	ballot         BallotNumber
+	Status         int8
+	Seq            int32
+	Deps           [DS]int32
+	lb             *LeaderBookkeeping
+	Index, Lowlink int
+	bfilter        *bloomfilter.Bloomfilter
+}
 
 type RequestMsg struct {
-	MId int64
+	MId int//64
 	Cmd Command
 }
 type RequestOKMsg struct {
@@ -91,10 +103,11 @@ type PrepareMsg struct {
 }
 type PrepareOKMsg struct {
 	Ack    bool
-	Ballot BallotNumber
+	Ballot BallotNumber // Ballot.Id is important
 	Id     InstRef
-	Sender ReplicaID
-	Inst   Instance
+	Sender ReplicaID    // important
+	//Inst   Instance
+    State  InstState    // important
 }
 
 type TryPreAcceptMsg struct {

@@ -15,15 +15,13 @@ import (
 
 var VERSION string
 
-type InstState int
-
 const (
-	Invalid      InstState = 0
-	PreAccepting InstState = 1
-	Accepting    InstState = 2
-	Committing   InstState = 3
-	Finished     InstState = 4
-	Prepare      InstState = 5
+	Invalid      common.InstState = 0
+	PreAccepting common.InstState = 1
+	Accepting    common.InstState = 2
+	Committing   common.InstState = 3
+	Finished     common.InstState = 4
+	Prepare      common.InstState = 5
 )
 
 type StatefulInst struct {
@@ -55,6 +53,8 @@ type EPaxos struct {
 	sem      *semaphore.Weighted // Limiting concurrent isms
 	ismsL    sync.RWMutex        // Restrict access to ep.isms and ep.nextInst
 	isms     map[common.InstanceID]*InstStateMachine
+
+    psmBook  map[common.InstRef]*PrepareStateMachine
 	nextInst common.InstanceID
 }
 
@@ -135,6 +135,7 @@ func NewEPaxos(nrep int64, rep common.ReplicaID) *EPaxos {
 	ep.sem = semaphore.NewWeighted(int64(pipe))
 	ep.ctx = context.TODO()
 	ep.isms = make(map[common.InstanceID]*InstStateMachine)
+    ep.psmBook = make(map[common.InstRef]*PrepareStateMachine)
 
 	ep.nextInst = ep.array[ep.self].Offset
 	return ep
