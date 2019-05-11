@@ -226,8 +226,7 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 			Cmd:    cmd,
 			Seq:    seq,
 			Deps:   deps,
-            Ballot: common.BallotNumber{Epoch:0, Id:0, Replica:ep.self}
-		},
+            Ballot: common.BallotNumber{Epoch:0, Id:0, Replica:ep.self}},
 	}
 	ep.putAt(id, ism.obj)
 

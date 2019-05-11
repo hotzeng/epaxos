@@ -41,19 +41,20 @@ type BallotNumber struct {
 	Id      BallotID
 	Replica ReplicaID
 }
-type Instance struct {
-	Cmds           []state.Command
-	ballot         BallotNumber
-	Status         int8
-	Seq            int32
-	Deps           [DS]int32
-	lb             *LeaderBookkeeping
-	Index, Lowlink int
-	bfilter        *bloomfilter.Bloomfilter
-}
+
+//type Instance struct {
+//	Cmds           []state.Command
+//	ballot         BallotNumber
+//	Status         int8
+//	Seq            int32
+//	Deps           [DS]int32
+//	lb             *LeaderBookkeeping
+//	Index, Lowlink int
+//	bfilter        *bloomfilter.Bloomfilter
+//}
 
 type RequestMsg struct {
-	MId int//64
+	MId int64
 	Cmd Command
 }
 type RequestOKMsg struct {

@@ -126,8 +126,7 @@ func (ep *EPaxos) ProcessPrepare(req common.PrepareMsg) {
         Ballot: ep.array[req.Id.Replica].Pending[req.Id.Inst].inst.Ballot,
         Id:     req.Id,
         Sender: ep.self,
-        State:  ep.array[req.Id.Replica].Pending[req.Id.Inst].state
-    }
+        State:  ep.array[req.Id.Replica].Pending[req.Id.Inst].state}
     if ep.verbose {
         log.Printf("Auditor #%02.%d replied PrepareOKMsg!", req.Id.Replica, req.Id.Inst)
     }

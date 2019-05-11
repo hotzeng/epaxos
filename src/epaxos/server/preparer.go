@@ -2,9 +2,6 @@ package main
 
 import (
 	"epaxos/common"
-	"log"
-	"sync"
-	"time"
 )
 
 
@@ -39,12 +36,12 @@ type PrepareStateMachine struct {
 
 
 func NewPrepareStateMachine() *PrepareStateMachine {
-	psm := new(InstStateMachine)
+	psm := new(PrepareStateMachine)
 	return psm
 }
 
 
-func (ep *EPaxos) startExplicitPrepare(inst InstRef, req common.PrepareMsg) {
+func (ep *EPaxos) startExplicitPrepare(inst common.InstRef, req common.PrepareMsg) {
     targetInst := ep.array[inst.Replica].Pending[inst.Inst].inst
     targetInst.Ballot.Id = req.Ballot.Id
     ep.makeMulticast(req, ep.peers - 1)
@@ -53,7 +50,6 @@ func (ep *EPaxos) startExplicitPrepare(inst InstRef, req common.PrepareMsg) {
     ep.psmBook[inst] = psm
     psm.ppLeft = ep.peers / 2
     var decision ExplicitPrepareDecision
-    var inst common.Instance
     // replica of ballot needs to be passed because we actually not sure previously who should take care of this instance 
     for {
         decision, inst = psm.runPSM(inst, targetInst.Ballot.Replica, ep.peers / 2)
@@ -74,15 +70,12 @@ func (ep *EPaxos) startExplicitPrepare(inst InstRef, req common.PrepareMsg) {
 
         ep.makeMulticast(sendReq, )
 
-
-        }
-
     }
 }
 
 
 // in this strategy, it is slightly different from paper when there is no prepare reply with commit or accept state. In such case, if there is one preaccept, then the new leader just broadcast preaccept. If there is no preaccept, then broadcast no-operation. 
-func (psm *PrepareStateMachine) runPSM(instRef InstRef, leader ReplicaID, majority int64) (decision ExplicitPrepareDecision, instToSend common.Instance) {
+func (psm *PrepareStateMachine) runPSM(instRef common.InstRef, leader ReplicaID, majority int64) (decision ExplicitPrepareDecision, instToSend common.Instance) {
     instToSend = stop
     var localRank rank
     localRank = noRank

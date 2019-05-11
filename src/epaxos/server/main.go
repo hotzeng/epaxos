@@ -26,7 +26,7 @@ const (
 
 type StatefulInst struct {
 	inst  common.Instance
-	state InstState
+	state common.InstState
 }
 
 type InstList struct {
