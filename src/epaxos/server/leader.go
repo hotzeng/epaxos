@@ -234,18 +234,17 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 	ep.putAt(id, ism.obj)
 
 	// send PreAccept to all other replicas in F
-	// F := ep.peers / 2
-	F := ep.peers
+	F := ep.peers / 2
 	ism.obj.state = PreAccepting
 	ism.paChanMake()
 	ism.paBook = make(map[common.ReplicaID]bool)
-	ism.paLeft = F - int64(1)
+	ism.paLeft = F
 	ism.paFast = true
 	ism.obj.state = PreAccepting
 	ep.makeMulticast(common.PreAcceptMsg{
 		Id:   id,
 		Inst: ism.obj.inst,
-	}, ism.paLeft)
+	}, ep.peers-int64(1))
 	if ep.verbose {
 		log.Printf("Leader %d finished MultiCast for PreAccept", ism.instId)
 	}
@@ -302,7 +301,7 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 				ep.makeMulticast(common.AcceptMsg{
 					Id:   id,
 					Inst: ism.obj.inst,
-				}, ism.acLeft)
+				}, ep.peers-int64(1))
 				if ep.verbose {
 					log.Printf("Leader %d finished MultiCase for Accept", ism.instId)
 				}
@@ -311,12 +310,12 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 				if ep.verbose {
 					log.Printf("Time out! Leader %d re-send MultiCast for PreAccept Msg!", ism.instId)
 				}
-				ism.paLeft = F - int64(1)
+				ism.paLeft = F
 				ism.paBook = make(map[common.ReplicaID]bool)
 				ep.makeMulticast(common.PreAcceptMsg{
 					Id:   id,
 					Inst: ism.obj.inst,
-				}, ism.paLeft)
+				}, ep.peers-int64(1))
 			}
 
 		case Accepting:
@@ -350,7 +349,7 @@ func (ep *EPaxos) runISM(ism *InstStateMachine, cmd common.Command) error {
 				ep.makeMulticast(common.AcceptMsg{
 					Id:   id,
 					Inst: ism.obj.inst,
-				}, ism.acLeft)
+				}, ep.peers-int64(1))
 			}
 
 		case Committing:
