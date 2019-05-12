@@ -56,6 +56,8 @@ sleep 20
 
 (sleep 50 && \
 	docker kill epaxos-server-1 && \
+	docker kill epaxos-server-2 && \
+	docker kill epaxos-server-3 && \
 	sleep 30 &&
 	docker start epaxos-server-1 \
 	) >/dev/null &

@@ -34,8 +34,8 @@ for I in $(seq 0 $(($NS-1))); do
     for J in $(seq 0 $(($NS-1))); do
         if [ "$I" -eq "$J" ]; then
             continue
-        elif [ "$I" -lt "$G" ] && [ "$J" -lt "$G" ] || \
-            [ "$I" -ge "$G" ] && [ "$J" -ge "$G" ]; then
+        elif ([ "$I" -lt "$G" ] && [ "$J" -lt "$G" ]) || \
+            ([ "$I" -ge "$G" ] && [ "$J" -ge "$G" ]); then
             D="$DD"
         else
             D="$D0"
