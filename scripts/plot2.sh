@@ -5,7 +5,7 @@ set -euxo pipefail
 pv --version >&2
 
 NS=${1:-5}    # Number of servers
-NR=${2:-4096} # Number of records to test
+NR=${2:-8192} # Number of records to test
 NP=${3:-128}  # Client window
 RK=${4:-5}    # Key collsion is 5%
 D0=${5:-75}   # Inter-group delay
@@ -16,7 +16,9 @@ NK=$(($NR * 100 / $RK))
 
 make -j2 debug >&2
 make pumba-down >&2
-docker-compose down
+if [ -f "./docker-compose.yml" ]; then
+    docker-compose down
+fi
 
 sudo find ./data -type f -delete
 
@@ -52,7 +54,11 @@ done
 
 sleep 20
 
-(sleep 60; docker kill epaxos-server-1 >/dev/null) &
+(sleep 50 && \
+	docker kill epaxos-server-1 && \
+	sleep 30 &&
+	docker start epaxos-server-1 \
+	) >/dev/null &
 
 for I in '0'; do
     ./bin/client \

@@ -41,9 +41,10 @@ func (ism *InstStateMachine) paChanDrop() {
 	go func() {
 		for {
 			m, ok := <-ism.paChan // Consume all pending requests
-			if ok {
-				log.Printf("Warning: excessive message %d: %+v", ism.instId, m)
+			if !ok {
+				return
 			}
+			log.Printf("Warning: excessive message %d: %+v", ism.instId, m)
 		}
 	}()
 	ism.mu.Lock() // No more write requests
@@ -71,9 +72,10 @@ func (ism *InstStateMachine) acChanDrop() {
 	go func() {
 		for {
 			m, ok := <-ism.acChan // Consume all pending requests
-			if ok {
-				log.Printf("Warning: excessive message %d: %+v", ism.instId, m)
+			if !ok {
+				return
 			}
+			log.Printf("Warning: excessive message %d: %+v", ism.instId, m)
 		}
 	}()
 	ism.mu.Lock() // No more write requests
@@ -134,12 +136,13 @@ func (ep *EPaxos) ProcessPreAcceptOK(req common.PreAcceptOKMsg) {
 		defer ep.ismsL.RUnlock()
 		return ep.isms[instId]
 	}()
+	if ism == nil {
+		return
+	}
 	ism.mu.RLock()
 	defer ism.mu.RUnlock()
 	if ism.paChan != nil {
 		ism.paChan <- req
-	} else {
-		log.Printf("Warning: attempt to write to nil paChan at %d", instId)
 	}
 }
 
@@ -150,12 +153,13 @@ func (ep *EPaxos) ProcessAcceptOK(req common.AcceptOKMsg) {
 		defer ep.ismsL.RUnlock()
 		return ep.isms[instId]
 	}()
+	if ism == nil {
+		return
+	}
 	ism.mu.RLock()
 	defer ism.mu.RUnlock()
 	if ism.acChan != nil {
 		ism.acChan <- req
-	} else {
-		log.Printf("Warning: attempt to write to nil acChan at %d", instId)
 	}
 }
 

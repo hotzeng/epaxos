@@ -35,9 +35,10 @@ func (ism *PutStateMachine) chDrop() {
 	go func() {
 		for {
 			m, ok := <-ism.ch // Consume all pending requests
-			if ok {
-				log.Printf("Warning: excessive message ##%05d [%d]=0x%016x (%d) to %d: %+v", ism.count, ism.key, ism.val, ism.mid, ism.server, m)
+			if !ok {
+				return
 			}
+			log.Printf("Warning: excessive message ##%05d [%d]=0x%016x (%d) to %d: %+v", ism.count, ism.key, ism.val, ism.mid, ism.server, m)
 		}
 	}()
 	ism.mu.Lock() // No more write requests

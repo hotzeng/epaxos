@@ -16,7 +16,9 @@ NK=$(($NR * 100 / $RK))
 
 make -j2 debug >&2
 make pumba-down >&2
-docker-compose down
+if [ -f "./docker-compose.yml" ]; then
+    docker-compose down
+fi
 
 sudo find ./data -type f -delete
 

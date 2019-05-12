@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -euo pipefail
+set -uo pipefail
 
 DEBUG="TRUE"
 if [ "$1" = "--prod" ]; then
@@ -54,7 +54,7 @@ EOF
   epaxos-server-$I:
     image: b1f6c1c4/epaxos
     container_name: epaxos-server-$I
-    restart: always
+    restart: "no"
     environment:
       EPAXOS_DEBUG: "$DEBUG"
       EPAXOS_LISTEN: "0.0.0.0:23330"
