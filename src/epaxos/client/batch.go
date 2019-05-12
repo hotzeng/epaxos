@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -102,6 +103,7 @@ options:
 	-N <nops>            number of operations, infinite = -1 [default: -1]
 	-S <servers>         servers to choose from [default: 1]
 	-L, --latency        write individual latency to stdout
+	--throughput <intl>  write throughput every intl milliseconds
 	--key-bias <key>     minimum key value [default: 0]
 	--random-server      choose servers randomly each time
 	--random-key         choose keys randomly each time
@@ -133,6 +135,12 @@ options:
 	latency, err := args.Bool("--latency")
 	if err != nil {
 		return err
+	}
+
+	throughput, err := args.Int("--throughput")
+
+	if latency && throughput != 0 {
+		return errors.New("Either --latency or --throughput or neither")
 	}
 
 	keyL, err := args.Int("--key-bias")
@@ -174,6 +182,7 @@ options:
 	chx := make(chan interface{}, pipe)
 	lat := make(chan int64, 1024)
 	latDone := make(chan bool)
+	var counter int64
 	for i, ch := range ep.inbound {
 		go func(i int, ch chan interface{}) {
 			for {
@@ -215,14 +224,34 @@ options:
 	}()
 	if latency {
 		go func() {
+			defer func() {
+				latDone <- true
+			}()
 			for {
 				if l, ok := <-lat; ok {
 					fmt.Printf("%d\n", l)
 				} else {
+					return
+				}
+			}
+		}()
+	} else if throughput != 0 {
+		go func() {
+			defer func() {
+				latDone <- true
+			}()
+			for {
+				select {
+				case <-lat:
+					tput := atomic.SwapInt64(&counter, 0)
+					fmt.Printf("%d\n", tput)
+					return
+				case <-time.After(time.Duration(throughput) * time.Millisecond):
+					tput := atomic.SwapInt64(&counter, 0)
+					fmt.Printf("%d\n", tput)
 					break
 				}
 			}
-			latDone <- true
 		}()
 	}
 
@@ -273,6 +302,7 @@ options:
 			if latency {
 				lat <- dur.Nanoseconds()
 			}
+			atomic.AddInt64(&counter, 1)
 		}(mid)
 
 		mid++

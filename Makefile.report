@@ -8,4 +8,4 @@ report/%.csv: scripts/%.sh
 report/%.pdf: scripts/%.R report/%.csv
 	Rscript --vanilla $< || rm -f $@
 
-report: report/plot1.pdf
+report: report/plot1.pdf report/plot2.pdf
