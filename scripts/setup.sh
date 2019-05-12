@@ -53,3 +53,5 @@ for I in $(seq 0 $(($NS-1))); do
         --jitter "$(($D * $JT / 100))" \
         "epaxos-server-$I" >&2
 done
+
+sleep 10

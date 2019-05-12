@@ -14,12 +14,12 @@ NK=$(($NR * 100 / $RK))
 scripts/setup.sh "$NS" "$NR" "$NP" "$RK" "$D0" "$JT"
 
 (sleep 50 && \
-	docker kill epaxos-server-1 && \
+	docker kill epaxos-server-2 && \
 	sleep 30 &&
-	docker start epaxos-server-1 \
+	docker start epaxos-server-2 \
 	) >/dev/null &
 
-for I in '0'; do
+for I in '4'; do
     ./bin/client \
         -n "$NS" -t 30.0 --verbose \
         batch-put \

@@ -17,6 +17,7 @@ pdf('report/plot1.pdf', 5, 5);
 
 ggplot(data, aes(x=id, y=time)) +
 	geom_boxplot() + # violin(scale='area') +
+	expand_limits(y=0) +
 	xlab('Server ID') +
 	ylab('Client delay (ms)');
 
