@@ -55,7 +55,7 @@ func (ism *PutStateMachine) chRead(timeout time.Duration) (*common.RequestOKMsg,
 	}
 }
 
-func (ep *EPaxosCluster) runISM(ism *PutStateMachine, verbose bool) bool {
+func (ep *EPaxosCluster) runISM(ism *PutStateMachine, verbose bool) (time.Duration, bool) {
 	rawmsg := common.RequestMsg{
 		MId: ism.mid,
 		Cmd: common.Command{
@@ -66,6 +66,7 @@ func (ep *EPaxosCluster) runISM(ism *PutStateMachine, verbose bool) bool {
 	}
 	ism.chMake()
 	defer ism.chDrop()
+	start := time.Now()
 	ep.rpc[ism.server] <- rawmsg
 	if verbose {
 		log.Printf("Batch PUT: ##%05d [%d]=0x%016x (%d) sent to %d", ism.count, ism.key, ism.val, ism.mid, ism.server)
@@ -81,7 +82,7 @@ func (ep *EPaxosCluster) runISM(ism *PutStateMachine, verbose bool) bool {
 					log.Printf("Batch PUT: ##%05d [%d]=0x%016x to %d committed", ism.count, ism.key, ism.val, ism.server)
 				}
 			}
-			return good
+			return time.Now().Sub(start), good
 		}
 		if ret < ism.retry {
 			log.Printf("Batch PUT: ##%05d [%d]=0x%016x to %d timeout, retry %d/%d", ism.count, ism.key, ism.val, ism.server, ret, ism.retry)
@@ -90,7 +91,7 @@ func (ep *EPaxosCluster) runISM(ism *PutStateMachine, verbose bool) bool {
 			log.Printf("Batch PUT: ##%05d [%d]=0x%016x to %d timeout, no more retry", ism.count, ism.key, ism.val, ism.server)
 		}
 	}
-	return false
+	return time.Now().Sub(start), false
 }
 
 func (ep *EPaxosCluster) cmdBatchPut(argv []string) error {
@@ -171,7 +172,7 @@ options:
 	var mu sync.RWMutex
 	dic := make(map[int64]*PutStateMachine)
 	chx := make(chan interface{}, pipe)
-	lat := make(chan int64, pipe)
+	lat := make(chan int64, 1024)
 	latDone := make(chan bool)
 	for i, ch := range ep.inbound {
 		go func(i int, ch chan interface{}) {
@@ -265,12 +266,12 @@ options:
 				delete(dic, mid)
 			}(mid)
 			defer sem.Release(1)
-			start := time.Now()
-			if !ep.runISM(ism, verbose) {
+			dur, ok := ep.runISM(ism, verbose)
+			if !ok {
 				good = false
 			}
 			if latency {
-				lat <- time.Now().Sub(start).Nanoseconds()
+				lat <- dur.Nanoseconds()
 			}
 		}(mid)
 
