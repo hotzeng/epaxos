@@ -3,11 +3,11 @@ library(dplyr);
 library(ggplot2);
 
 data <- read.csv(file='report/plot2.csv', header=FALSE, sep=',');
-colnames(data) <- c('servers', 'records', 'pipe', 'collision', 'inter', 'intra', 'jitter', 'id', 'throughput');
+colnames(data) <- c('servers', 'records', 'pipe', 'collision', 'inter', 'jitter', 'id', 'throughput');
 data$id <- seq.int(nrow(data));
 data <- data %>%
 	mutate(collision=collision / 100, jitter=jitter / 100) %>%
-	select(-servers, -records, -pipe, -collision, -inter, -intra, -jitter) %>%
+	select(-servers, -records, -pipe, -collision, -inter, -jitter) %>%
 	mutate();
 
 pdf('report/plot2.pdf', 5, 5);

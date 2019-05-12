@@ -2,7 +2,8 @@
 
 .SECONDARY:
 
-report/%.csv: scripts/%.sh
+report/%.csv: scripts/%.sh scripts/setup.sh scripts/teardown.sh
+	mkdir -p report/
 	$< | tee $@ >/dev/null
 
 report/%.pdf: scripts/%.R report/%.csv
