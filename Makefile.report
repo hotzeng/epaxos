@@ -1,0 +1,11 @@
+.PHONY: report
+
+.SECONDARY:
+
+report/%.csv: scripts/%.sh
+	$< | tee $@ >/dev/null
+
+report/%.pdf: scripts/%.R report/%.csv
+	Rscript --vanilla $< || rm -f $@
+
+report: report/plot1.pdf
