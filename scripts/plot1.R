@@ -13,7 +13,7 @@ data <- data %>%
 	select(-servers, -records, -inter, -jitter) %>%
 	mutate();
 
-pdf('report/plot1.pdf', 5, 5);
+png('report/plot1.png', res=150);
 
 ggplot(data, aes(x=id, y=time)) +
 	geom_boxplot() + # violin(scale='area') +

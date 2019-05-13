@@ -10,7 +10,7 @@ data <- data %>%
 	select(-servers, -records, -pipe, -collision, -inter, -jitter) %>%
 	mutate();
 
-pdf('report/plot2.pdf', 5, 5);
+png('report/plot2.png', res=150);
 
 ggplot(data, aes(x=id, y=throughput)) +
 	geom_line() +
